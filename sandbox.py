@@ -27,3 +27,5 @@ for i,prefix in enumerate(size_order[::-1]):
     for file in glob(f'{directory}\\*-{prefix}-1.conn.log.labeled'):
         db.upsertLogfile(file)
         print()
+    
+db.close()

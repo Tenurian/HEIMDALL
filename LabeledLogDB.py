@@ -4,6 +4,7 @@ import sqlite3 as sql
 from sqlite3 import Error
 
 import logging
+from datetime import datetime
 
 from utils.ProgressBar import printProgressBar
 
@@ -14,17 +15,17 @@ class LabeledLogDB:
     def __init__(self):
         self.__conn = sql.connect(r'./.connlog.db')
         self.__conn.row_factory = self.__dict_factory
-
+        self.__logger = logging.getLogger('LabeledLogDB')
         try:
             self.__cursor = self.__conn.cursor()
         except Error as e:
-            print(f'Unable to connect to database. {e}')
+            self.__logger.error(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Unable to connect to database. {e}')
             exit(1)
         pass
 
     def setupDB(self):
-        self.__cursor.execute(
-                """
+        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Creating Table')
+        self.__cursor.execute("""
 CREATE TABLE IF NOT EXISTS conn_logs (
     filename text NOT NULL,
     ts real NOT NULL,
@@ -51,21 +52,20 @@ CREATE TABLE IF NOT EXISTS conn_logs (
     label text,
     detailed_label text
 )
-                """
-            )
+        """)
 
     def upsertLogfile(self, file):
-        print(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Reading {os.path.basename(file)} and updating database...')
+        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Reading {os.path.basename(file)} and updating database...')
         sql_command = f'''
 INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,service,duration,orig_bytes,resp_bytes,conn_state,local_orig,local_resp,missed_bytes,history,orig_pkts,orig_ip_bytes,resp_pkts,resp_ip_bytes,tunnel_parents,label,detailed_label) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(uid) DO UPDATE SET filename = ?,ts = ?,src_ip = ?,src_port = ?,dst_ip = ?,dst_port = ?,proto = ?,service = ?,duration = ?,orig_bytes = ?,resp_bytes = ?,conn_state = ?,local_orig = ?,local_resp = ?,missed_bytes = ?,history = ?,orig_pkts = ?,orig_ip_bytes = ?,resp_pkts = ?,resp_ip_bytes = ?,tunnel_parents = ?,label = ?,detailed_label = ?
 '''
         lines = 0
-        print(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Counting lines in file')
+        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Counting lines in file')
         with open(file, 'r') as logfile:
             lines = len(logfile.readlines())-1
-        print(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t {lines} lines found.')
-        print(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Parsing file & inserting data into database')
+        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t {lines} lines found.')
+        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Parsing file & inserting data into database')
         with open(file, 'r') as logfile:
             for i,line in enumerate(logfile):
                 if not line.startswith('#'):
@@ -84,3 +84,9 @@ INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,serv
         for idx, col in enumerate(cursor.description):
             d[col[0]] = row[idx]
         return d
+    
+    def getLogsByFile(self,filename):
+        pass
+
+    def close(self):
+        self.__conn.close()
