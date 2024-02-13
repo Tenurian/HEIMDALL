@@ -9,10 +9,10 @@
 
 # print(json.dumps(c, indent=2))
 
-from logdb import LogDB
+from LabeledLogDB import LabeledLogDB
 from datetime import datetime
 
-db = LogDB()
+db = LabeledLogDB()
 db.setupDB()
 
 size_order = ['44','4','5','20','21','42','8','34','3','1','60','48','49','9','35','7','36','52','33','17','43','39']

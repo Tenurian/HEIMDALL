@@ -2,11 +2,12 @@ import os
 from datetime import datetime
 import sqlite3 as sql
 from sqlite3 import Error
-# from pathlib import Path
+
+import logging
 
 from utils.ProgressBar import printProgressBar
 
-class LogDB:
+class LabeledLogDB:
     __conn = None
     __cursor = None
 
