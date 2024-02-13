@@ -1,1 +1,4 @@
 .venv
+.connlog.db
+.connlog.db-journal
+__pycache__
