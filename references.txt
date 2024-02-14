@@ -1,0 +1,8 @@
+https://www.tensorflow.org/tutorials/structured_data/feature_columns
+
+https://keras.io/examples/structured_data/deep_neural_decision_forests/
+
+https://keras.io/examples/structured_data/classification_with_tfdf/
+
+https://www.tensorflow.org/decision_forests/api_docs/python/tfdf/keras/RandomForestModel
+
