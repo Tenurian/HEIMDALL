@@ -7,6 +7,7 @@ import keras
 from keras import layers
 from keras.layers import StringLookup
 
+import tensorflow as tf
 from tensorflow import data as tf_data
 
 from LabeledLogDB import LabeledLogDB
@@ -125,6 +126,16 @@ class Heimdall:
         for feature_name in self.__CATEGORICAL_FEATURE_NAMES:
             df[feature_name] = df[feature_name].astype(str)
         pass
+
+    # A utility method to create a tf.data dataset from a Pandas Dataframe
+    def __df_to_dataset(dataframe, shuffle=True, batch_size=32):
+        dataframe = dataframe.copy()
+        labels = dataframe.pop('target')
+        ds = tf.data.Dataset.from_tensor_slices((dict(dataframe), labels))
+        if shuffle:
+            ds = ds.shuffle(buffer_size=len(dataframe))
+        ds = ds.batch(batch_size)
+        return ds
 
     def setup_dataframes(self, LIMIT = 100000):
         self.__LOGGER.info(f'Reading {LIMIT} lines from database and transforming results into a pandas dataframe...')

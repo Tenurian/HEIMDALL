@@ -23,9 +23,11 @@ class LabeledLogDB:
             exit(1)
         pass
 
+    @classmethod
     def getConn(self):
         return self.__conn
 
+    @classmethod
     def setupDB(self):
         self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Creating Table')
         self.__cursor.execute("""
@@ -59,9 +61,13 @@ CREATE TABLE IF NOT EXISTS conn_logs (
 
     def upsertLogfile(self, file):
         self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Reading {os.path.basename(file)} and updating database...')
+#         sql_command = f'''
+# INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,service,duration,orig_bytes,resp_bytes,conn_state,local_orig,local_resp,missed_bytes,history,orig_pkts,orig_ip_bytes,resp_pkts,resp_ip_bytes,tunnel_parents,label,detailed_label) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+#     ON CONFLICT(uid) DO UPDATE SET filename = ?,ts = ?,src_ip = ?,src_port = ?,dst_ip = ?,dst_port = ?,proto = ?,service = ?,duration = ?,orig_bytes = ?,resp_bytes = ?,conn_state = ?,local_orig = ?,local_resp = ?,missed_bytes = ?,history = ?,orig_pkts = ?,orig_ip_bytes = ?,resp_pkts = ?,resp_ip_bytes = ?,tunnel_parents = ?,label = ?,detailed_label = ?
+# '''
         sql_command = f'''
 INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,service,duration,orig_bytes,resp_bytes,conn_state,local_orig,local_resp,missed_bytes,history,orig_pkts,orig_ip_bytes,resp_pkts,resp_ip_bytes,tunnel_parents,label,detailed_label) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT(uid) DO UPDATE SET filename = ?,ts = ?,src_ip = ?,src_port = ?,dst_ip = ?,dst_port = ?,proto = ?,service = ?,duration = ?,orig_bytes = ?,resp_bytes = ?,conn_state = ?,local_orig = ?,local_resp = ?,missed_bytes = ?,history = ?,orig_pkts = ?,orig_ip_bytes = ?,resp_pkts = ?,resp_ip_bytes = ?,tunnel_parents = ?,label = ?,detailed_label = ?
+    ON CONFLICT(uid) DO NOTHING
 '''
         lines = 0
         self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Counting lines in file')
@@ -74,22 +80,26 @@ INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,serv
                 if not line.startswith('#'):
                     f = lambda x: x if x != '-' else None
                     fields = [f(field) for field in [os.path.basename(file).split('.')[0], *line.split()]]
-                    fields_no_uid = list(fields)
-                    fields_no_uid.remove(fields[2])
-                    self.__cursor.execute(sql_command, [*fields, *fields_no_uid])
+                    # fields_no_uid = list(fields)
+                    # fields_no_uid.remove(fields[2])
+                    # self.__cursor.execute(sql_command, [*fields, *fields_no_uid])
+                    self.__cursor.execute(sql_command, fields)
                     self.__conn.commit()
                 printProgressBar(iteration=i, total=lines, decimals=6)
             pass
         pass
 
+    @DeprecationWarning
     def __dict_factory(cursor, row):
         d = {}
         for idx, col in enumerate(cursor.description):
             d[col[0]] = row[idx]
         return d
     
+    @classmethod
     def getLogsByFile(self,filename):
         pass
 
+    @classmethod
     def close(self):
         self.__conn.close()
