@@ -14,7 +14,7 @@ class LabeledLogDB:
 
     def __init__(self):
         self.__conn = sql.connect(r'./.connlog.db')
-        self.__conn.row_factory = self.__dict_factory
+        # self.__conn.row_factory = self.__dict_factory
         self.__logger = logging.getLogger('LabeledLogDB')
         try:
             self.__cursor = self.__conn.cursor()
@@ -22,6 +22,9 @@ class LabeledLogDB:
             self.__logger.error(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Unable to connect to database. {e}')
             exit(1)
         pass
+
+    def getConn(self):
+        return self.__conn
 
     def setupDB(self):
         self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Creating Table')
