@@ -71,8 +71,6 @@ class Heimdall:
         'resp_ip_bytes'
     ]
     __CATEGORICAL_FEATURE_NAMES   =   [
-        'filename',
-        'uid',
         'src_ip',
         'dst_ip',
         'proto',
@@ -80,8 +78,7 @@ class Heimdall:
         'conn_state',
         'local_orig',
         'local_resp',
-        'history',
-        'tunnel_parents'
+        'history'
     ]
     
     def __init__(
@@ -132,7 +129,7 @@ class Heimdall:
     def df_to_dataset(dataframe, shuffle=True, batch_size=32):
         dataframe = dataframe.copy()
         labels = dataframe.pop('label')
-        ds = tf_data.Dataset.from_tensor_slices(((dataframe), labels))
+        ds = tf_data.Dataset.from_tensor_slices((dict(dataframe), labels))
         if shuffle:
             ds = ds.shuffle(buffer_size=len(dataframe))
         ds = ds.batch(batch_size)
@@ -150,108 +147,99 @@ class Heimdall:
         malicious   = pd.read_sql_query(select_malicious,   self.__DATABASE.getConn())
         # Run the select_benign query and store it in a separate dataframe
         benign      = pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) 
-        # merge the two dataframes on the uid column
-        # df.merge(benign, on='uid')
+
         df = pd.concat([malicious, benign])
         # remove the filename and detailed_label columns
-        # df.drop(columns=['filename', 'detailed_label'])
+        # df
+        # df = df.drop(columns=['filename', 'detailed_label', 'tunnel_parents'])
 
-        df = df.fillna({
-            'filename'      : '-',
-            'ts'            : 0.0,
-            'uid'           : '-',
-            'src_ip'        : '-',
-            'src_port'      : 0,
-            'dst_ip'        : '-',
-            'dst_port'      : 0,
-            'proto'         : '-',
-            'service'       : '-',
-            'duration'      : 0.0,
-            'orig_bytes'    : 0,
-            'resp_bytes'    : 0,
-            'conn_state'    : '-',
-            'local_orig'    : '-',
-            'local_resp'    : '-',
-            'missed_bytes'  : 0,
-            'history'       : '-',
-            'orig_pkts'     : 0,
-            'orig_ip_bytes' : 0,
-            'resp_pkts'     : 0,
-            'resp_ip_bytes' : 0,
-            'tunnel_parents': '-'
+        # df = df.fillna({
+        #     'filename'      : '-',
+        #     'ts'            : 0.0,
+        #     'uid'           : '-',
+        #     'src_ip'        : '-',
+        #     'src_port'      : 0,
+        #     'dst_ip'        : '-',
+        #     'dst_port'      : 0,
+        #     'proto'         : '-',
+        #     'service'       : '-',
+        #     'duration'      : 0.0,
+        #     'orig_bytes'    : 0,
+        #     'resp_bytes'    : 0,
+        #     'conn_state'    : '-',
+        #     'local_orig'    : '-',
+        #     'local_resp'    : '-',
+        #     'missed_bytes'  : 0,
+        #     'history'       : '-',
+        #     'orig_pkts'     : 0,
+        #     'orig_ip_bytes' : 0,
+        #     'resp_pkts'     : 0,
+        #     'resp_ip_bytes' : 0,
+        #     'tunnel_parents': '-'
+        # })
+
+        df = df.drop(columns=['filename', 'detailed_label']).fillna({
+            'ts'                : 0.0,
+            'uid'               : '-',
+            'src_ip'            : '-',
+            'src_port'          : 0,
+            'dst_ip'            : '-',
+            'dst_port'          : 0,
+            'proto'             : '-',
+            'service'           : '-',
+            'duration'          : 0.0,
+            'orig_bytes'        : 0,
+            'resp_bytes'        : 0,
+            'conn_state'        : '-',
+            'local_orig'        : '-',
+            'local_resp'        : '-',
+            'missed_bytes'      : 0,
+            'history'           : '-',
+            'orig_pkts'         : 0,
+            'orig_ip_bytes'     : 0,
+            'resp_pkts'         : 0,
+            'resp_ip_bytes'     : 0,
+            'tunnel_parents'    : '-'
+        }).astype({
+            'ts'                : 'f', 
+            'uid'               : 'U',
+            'src_ip'            : 'U',
+            'src_port'          : 'i',
+            'dst_ip'            : 'U',
+            'dst_port'          : 'i',
+            'proto'             : 'U',
+            'service'           : 'U',
+            'duration'          : 'f',
+            'orig_bytes'        : 'i',
+            'resp_bytes'        : 'i',
+            'conn_state'        : 'U',
+            'local_orig'        : 'U',
+            'local_resp'        : 'U',
+            'missed_bytes'      : 'i',
+            'history'           : 'U',
+            'orig_pkts'         : 'i',
+            'orig_ip_bytes'     : 'i',
+            'resp_pkts'         : 'i',
+            'resp_ip_bytes'     : 'i',
+            'tunnel_parents'    : 'U'
         })
-        
-        # df['filename']      .fillna(value='-',      inplace=True)
-        # df['ts']            .fillna(value=np.nan,   inplace=True)
-        # df['uid']           .fillna(value='-',      inplace=True)
-        # df['src_ip']        .fillna(value='-',      inplace=True)
-        # df['src_port']      .fillna(value=np.nan,   inplace=True)
-        # df['dst_ip']        .fillna(value='-',      inplace=True)
-        # df['dst_port']      .fillna(value=np.nan,   inplace=True)
-        # df['proto']         .fillna(value='-',      inplace=True)
-        # df['service']       .fillna(value='-',      inplace=True)
-        # df['duration']      .fillna(value=np.nan,   inplace=True)
-        # df['orig_bytes']    .fillna(value=np.nan,   inplace=True)
-        # df['resp_bytes']    .fillna(value=np.nan,   inplace=True)
-        # df['conn_state']    .fillna(value='-',      inplace=True)
-        # df['local_orig']    .fillna(value='-',      inplace=True)
-        # df['local_resp']    .fillna(value='-',      inplace=True)
-        # df['missed_bytes']  .fillna(value=np.nan,   inplace=True)
-        # df['history']       .fillna(value='-',      inplace=True)
-        # df['orig_pkts']     .fillna(value=np.nan,   inplace=True)
-        # df['orig_ip_bytes'] .fillna(value=np.nan,   inplace=True)
-        # df['resp_pkts']     .fillna(value=np.nan,   inplace=True)
-        # df['resp_ip_bytes'] .fillna(value=np.nan,   inplace=True)
-        # df['tunnel_parents'].fillna(value='-',      inplace=True)
-        
-        # df.replace({'tunnel_parents':{'\s*\(empty\)': '-'}})(empty)
-        df.replace({'tunnel_parents':{object(): '-'}})
-        df.replace({'tunnel_parents':{'(empty)': '-'}})
-        df.replace({'tunnel_parents':{'\(empty\)': '-'}})
-        df.replace({'tunnel_parents':{'': '-'}})
-        # self.__LOGGER.info(df['tunnel_parents'])
-        # self.__LOGGER.info(df['tunnel_parents'])
 
-        self.__LOGGER.info(f'df shape: {df.shape}')
+        print(df.dtypes)
 
         # split the dataframe into the train, test, and validation frames
         train, test = train_test_split(df, test_size=0.2)
         train, val = train_test_split(train, test_size=0.2)
 
-        # self.__LOGGER.info(train.shape)
-        # self.__LOGGER.info(train.head)
-        # self.__LOGGER.info(test.shape)
-        # self.__LOGGER.info(test.head)
-        # self.__LOGGER.info(val.shape)
-        # self.__LOGGER.info(val.head)
-
-        # self.__LOGGER.info(f"226 - tunnel_parents: {df.tunnel_parents}")
-        # self.__LOGGER.info(f"227 - tunnel_parents: {type(df.tunnel_parents)}")
-        # self.__LOGGER.info(f"228 - proto[1]: '{df.proto[1]}'")
-        # self.__LOGGER.info(f"228 - tunnel_parents[1]: '{df.tunnel_parents[1]}'")
-        # self.__LOGGER.info(f"229 - datatype: {type(list(df.tunnel_parents)[1])}")
-
-        print(f'"{df.tunnel_parents.iloc[1]}"')
-        print(f'{type(df.tunnel_parents.iloc[1])}')
-        print()
-
-        self.__LOGGER.info(f'{len(train)} train<{type(train)}> examples')
-        self.__LOGGER.info(train.head())
-        self.__LOGGER.info(f'{len(test)} test<{type(test)}> examples')
-        self.__LOGGER.info(test.head())
-        self.__LOGGER.info(f'{len(val)} validation<{type(val)}> examples')
-        self.__LOGGER.info(val.head())
-
-
         batch_size = 5 # A small batch sized is used for demonstration purposes
         train_ds =  Heimdall.df_to_dataset(train,                 batch_size=batch_size)
-        # val_ds =    Heimdall.df_to_dataset(val,   shuffle=False,  batch_size=batch_size)
-        # test_ds =   Heimdall.df_to_dataset(test,  shuffle=False,  batch_size=batch_size)
+        val_ds =    Heimdall.df_to_dataset(val,   shuffle=False,  batch_size=batch_size)
+        test_ds =   Heimdall.df_to_dataset(test,  shuffle=False,  batch_size=batch_size)
 
         # for feature_batch, label_batch in train_ds.take(1):
         #     print('Every feature:', list(feature_batch.keys()))
         #     print('A batch of ages:', feature_batch['Age'])
         #     print('A batch of targets:', label_batch )
+
         # Code above this line
         pass
     
