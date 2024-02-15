@@ -27,7 +27,7 @@ class Heimdall:
         DATABASE(LabeledLogDB)  - The labeled Log Database that will be used for training, testing, and validation..
     """
     
-    '''Columns & Their Datatypes
+    ''' Columns  &  Their Datatypes
         filename        text    cat
         ts              float   num
         uid             text    cat
@@ -49,7 +49,7 @@ class Heimdall:
         orig_ip_bytes   int     num
         resp_pkts       int     num
         resp_ip_bytes   int     num
-        tunnel_parents  blob*   cat
+        tunnel_parents  text    cat
         ---
         label           text    label
         detailed_label  text    label
@@ -128,10 +128,11 @@ class Heimdall:
         pass
 
     # A utility method to create a tf.data dataset from a Pandas Dataframe
-    def __df_to_dataset(dataframe, shuffle=True, batch_size=32):
+    @staticmethod
+    def df_to_dataset(dataframe, shuffle=True, batch_size=32):
         dataframe = dataframe.copy()
-        labels = dataframe.pop('target')
-        ds = tf.data.Dataset.from_tensor_slices((dict(dataframe), labels))
+        labels = dataframe.pop('label')
+        ds = tf_data.Dataset.from_tensor_slices(((dataframe), labels))
         if shuffle:
             ds = ds.shuffle(buffer_size=len(dataframe))
         ds = ds.batch(batch_size)
@@ -153,6 +154,30 @@ class Heimdall:
         df.merge(benign, on='uid')
         # remove the filename and detailed_label columns
         df.drop(columns=['filename', 'detailed_label'])
+        
+        df['filename']      .fillna(value='-',      inplace=True)
+        df['ts']            .fillna(value=np.nan,   inplace=True)
+        df['uid']           .fillna(value='-',      inplace=True)
+        df['src_ip']        .fillna(value='-',      inplace=True)
+        df['src_port']      .fillna(value=np.nan,   inplace=True)
+        df['dst_ip']        .fillna(value='-',      inplace=True)
+        df['dst_port']      .fillna(value=np.nan,   inplace=True)
+        df['proto']         .fillna(value='-',      inplace=True)
+        df['service']       .fillna(value='-',      inplace=True)
+        df['duration']      .fillna(value=np.nan,   inplace=True)
+        df['orig_bytes']    .fillna(value=np.nan,   inplace=True)
+        df['resp_bytes']    .fillna(value=np.nan,   inplace=True)
+        df['conn_state']    .fillna(value='-',      inplace=True)
+        df['local_orig']    .fillna(value='-',      inplace=True)
+        df['local_resp']    .fillna(value='-',      inplace=True)
+        df['missed_bytes']  .fillna(value=np.nan,   inplace=True)
+        df['history']       .fillna(value='-',      inplace=True)
+        df['orig_pkts']     .fillna(value=np.nan,   inplace=True)
+        df['orig_ip_bytes'] .fillna(value=np.nan,   inplace=True)
+        df['resp_pkts']     .fillna(value=np.nan,   inplace=True)
+        df['resp_ip_bytes'] .fillna(value=np.nan,   inplace=True)
+        df['tunnel_parents'].fillna(value='-',      inplace=True)
+        df['tunnel_parents'].replace('(empty)', '-')
 
         self.__LOGGER.info(f'df shape: {df.shape}')
 
@@ -160,9 +185,24 @@ class Heimdall:
         train, test = train_test_split(df, test_size=0.2)
         train, val = train_test_split(train, test_size=0.2)
 
-        self.__LOGGER.info(f'{len(train)} train examples')
-        self.__LOGGER.info(f'{len(test)} test examples')
-        self.__LOGGER.info(f'{len(val)} validation examples')
+        self.__LOGGER.info(f'{len(train)} train<{type(train)}> examples')
+        self.__LOGGER.info(train.head())
+        self.__LOGGER.info(f'{len(test)} test<{type(test)}> examples')
+        self.__LOGGER.info(test.head())
+        self.__LOGGER.info(f'{len(val)} validation<{type(val)}> examples')
+        self.__LOGGER.info(val.head())
+
+
+        batch_size = 5 # A small batch sized is used for demonstration purposes
+        train_ds =  Heimdall.df_to_dataset(train,                 batch_size=batch_size)
+        # val_ds =    Heimdall.df_to_dataset(val,   shuffle=False,  batch_size=batch_size)
+        # test_ds =   Heimdall.df_to_dataset(test,  shuffle=False,  batch_size=batch_size)
+
+        # for feature_batch, label_batch in train_ds.take(1):
+        #     print('Every feature:', list(feature_batch.keys()))
+        #     print('A batch of ages:', feature_batch['Age'])
+        #     print('A batch of targets:', label_batch )
+        # Code above this line
         pass
     
     def closeDatabase(self):

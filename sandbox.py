@@ -17,19 +17,25 @@ from datetime import datetime
 db = LabeledLogDB()
 db.setupDB()
 
-size_order = ['44','4','5','20','21','42','8','34','3','1','60','48','49','9','35','7','36','52','33','17','43','39']
+# size_order = ['44','4','5','20','21','42','8','34','3','1','60','48','49','9','35','7','36','52','33','17','43','39']
+size_order = ['44','4','5','20','21','42','8','34','3','1']#'60','48','49','9','35','7','36','52','33','17','43','39']
 
 # import os
 from glob import glob
 
-directory = r"C:\Users\thomas.feuerborn\Documents\IoT Labeled Zeek Logs"
+# directory = r"C:\Users\thomas.feuerborn\Documents\IoT Labeled Zeek Logs"
+directory = r"C:\Users\Spoon\Documents\IoT Labeled Zeek Logs"
 
 logging.basicConfig(level='INFO')
 
-for i,prefix in enumerate(size_order[::-1]):
+## largest -> smallest
+# for i,prefix in enumerate(size_order[::-1]):
+# smallest -> largest 
+for i,prefix in enumerate(size_order):
     print(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
     for file in glob(f'{directory}\\*-{prefix}-1.conn.log.labeled'):
         db.upsertLogfile(file)
+        print(db.size())
         print()
     
 db.close()

@@ -23,11 +23,9 @@ class LabeledLogDB:
             exit(1)
         pass
 
-    @classmethod
     def getConn(self):
         return self.__conn
 
-    @classmethod
     def setupDB(self):
         self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Creating Table')
         self.__cursor.execute("""
@@ -53,7 +51,7 @@ CREATE TABLE IF NOT EXISTS conn_logs (
     orig_ip_bytes int,
     resp_pkts int,
     resp_ip_bytes int,
-    tunnel_parents blob,
+    tunnel_parents text,
     label text,
     detailed_label text
 )
@@ -96,10 +94,11 @@ INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,serv
             d[col[0]] = row[idx]
         return d
     
-    @classmethod
     def getLogsByFile(self,filename):
         pass
 
-    @classmethod
+    def size(self):
+        return self.__cursor.execute('SELECT COUNT(1) FROM conn_logs').fetchall()
+
     def close(self):
         self.__conn.close()
