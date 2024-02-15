@@ -12,8 +12,6 @@ from tensorflow import data as tf_data
 
 from LabeledLogDB import LabeledLogDB
 
-from sklearn.model_selection import train_test_split
-
 class Heimdall:
     """
     The HEIMDALL model class.
@@ -26,6 +24,52 @@ class Heimdall:
         VALIDATION_RATIO(float) - Ratio of the training dataset used to monitor the training. Require to be >0 if early stopping is enabled.
         DATABASE(LabeledLogDB)  - The labeled Log Database that will be used for training, testing, and validation..
     """
+
+    # A utility method to create a tf.data dataset from a Pandas Dataframe
+    @staticmethod
+    def df_to_dataset(dataframe, shuffle=True, batch_size=32):
+        dataframe = dataframe.copy()
+        labels = dataframe.pop('label')
+        ds = tf_data.Dataset.from_tensor_slices((dict(dataframe), labels))
+        if shuffle:
+            ds = ds.shuffle(buffer_size=len(dataframe))
+        ds = ds.batch(batch_size)
+        return ds
+    
+    @staticmethod
+    def get_normalization_layer(name, dataset):
+        # Create a Normalization layer for the feature.
+        normalizer = layers.Normalization(axis=None)
+
+        # Prepare a Dataset that only yields the feature.
+        feature_ds = dataset.map(lambda x, y: x[name])
+
+        # Learn the statistics of the data.
+        normalizer.adapt(feature_ds)
+
+        return normalizer
+    
+    @staticmethod
+    def get_category_encoding_layer(name, dataset, dtype, max_tokens=None):
+        # Create a layer that turns strings into integer indices.
+        if dtype == 'string':
+            index = layers.StringLookup(max_tokens=max_tokens)
+        # Otherwise, create a layer that turns integer values into integer indices.
+        else:
+            index = layers.IntegerLookup(max_tokens=max_tokens)
+
+        # Prepare a `tf.data.Dataset` that only yields the feature.
+        feature_ds = dataset.map(lambda x, y: x[name])
+
+        # Learn the set of possible values and assign them a fixed integer index.
+        index.adapt(feature_ds)
+
+        # Encode the integer indices.
+        encoder = layers.CategoryEncoding(num_tokens=index.vocabulary_size())
+
+        # Apply multi-hot encoding to the indices. The lambda function captures the
+        # layer, so you can use them, or include them in the Keras Functional model later.
+        return lambda feature: encoder(index(feature))
     
     ''' Columns  &  Their Datatypes
         filename        text    cat
@@ -115,39 +159,14 @@ class Heimdall:
         self.__LOGGER.info('Class loaded with provided values or defaults.')
         pass
 
-    def __prepareDF(self, df):
-        df[self.__TARGET_COLUMN_NAME] = df[self.__TARGET_COLUMN_NAME].map(
-            self.__TARGET_LABELS.index
-        )
-        # Cast the categorical features to string.
-        for feature_name in self.__CATEGORICAL_FEATURE_NAMES:
-            df[feature_name] = df[feature_name].astype(str)
-        pass
-
-    # A utility method to create a tf.data dataset from a Pandas Dataframe
-    @staticmethod
-    def df_to_dataset(dataframe, shuffle=True, batch_size=32):
-        dataframe = dataframe.copy()
-        labels = dataframe.pop('label')
-        ds = tf_data.Dataset.from_tensor_slices((dict(dataframe), labels))
-        if shuffle:
-            ds = ds.shuffle(buffer_size=len(dataframe))
-        ds = ds.batch(batch_size)
-        return ds
-
     def setup_dataframes(self, LIMIT = 100000):
         self.__LOGGER.info(f'Reading {LIMIT} lines from database and transforming results into a pandas dataframe...')
         
-        # Sql Statement to grab half the limit of malicious conn logs randomly
         select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT {LIMIT//2})'
-        # Sql Statement to grab half the limit of benign conn logs randomly
         select_benign       = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT {LIMIT//2})'
 
-        # Run the select_malicous query and store it in the dataframe
         malicious   = pd.read_sql_query(select_malicious,   self.__DATABASE.getConn())
-        # Run the select_benign query and store it in a separate dataframe
         benign      = pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) 
-
         # remove the filename and detailed_label columns, fill null, and cast the data to appropriate types
         df = pd.concat([
             malicious, 
@@ -201,25 +220,60 @@ class Heimdall:
             'tunnel_parents'    : 'U'
         })
 
-        print(df.dtypes)
+        train, val, test = np.split(df.sample(frac=1), [int(0.8*len(df)), int(0.9*len(df))])
 
-        # split the dataframe into the train, test, and validation frames
-        train, test = train_test_split(df, test_size=0.2)
-        train, val = train_test_split(train, test_size=0.2)
-
-        batch_size = 5 # A small batch sized is used for demonstration purposes
-        train_ds =  Heimdall.df_to_dataset(train,                 batch_size=batch_size)
-        val_ds =    Heimdall.df_to_dataset(val,   shuffle=False,  batch_size=batch_size)
-        test_ds =   Heimdall.df_to_dataset(test,  shuffle=False,  batch_size=batch_size)
-
-        for feature_batch, label_batch in train_ds.take(1):
-            print('Every feature:', list(feature_batch.keys()))
-            print('A batch of ages:', feature_batch['dst_port'])
-            print('A batch of targets:', label_batch )
-
-        # Code above this line
-        pass
+        return [train,val,test]
     
+    def testing_code(self,train,val,test):
+        print(len(train), 'training examples')
+        print(len(val), 'validation examples')
+        print(len(test), 'test examples')
+
+        batch_size = 5
+        train_ds = Heimdall.df_to_dataset(train, batch_size=batch_size)
+
+        [(train_features, label_batch)] = train_ds.take(1)
+        print('Every feature:', list(train_features.keys()))
+        print('A batch of dst_ports:', train_features['dst_port'])
+        print('A batch of targets:', label_batch )
+
+        dst_port_col = train_features['dst_port']
+        layer = Heimdall.get_normalization_layer('dst_port', train_ds)
+        print(layer(dst_port_col))
+
+        test_proto_col = train_features['proto']
+        test_proto_layer = Heimdall.get_category_encoding_layer(
+            name='proto',
+            dataset=train_ds,
+            dtype='string'
+        )
+        print(test_proto_layer(test_proto_col))
+
+        test_dst_port_col = train_features['dst_port']
+        test_dst_port_layer = Heimdall.get_category_encoding_layer(
+            name='dst_port',
+            dataset=train_ds,
+            dtype='int64',
+            max_tokens=5
+        )
+        print(test_dst_port_layer(test_dst_port_col))
+
+        batch_size = 256
+        train_ds = Heimdall.df_to_dataset(train, batch_size=batch_size)
+        val_ds = Heimdall.df_to_dataset(val, shuffle=False, batch_size=batch_size)
+        test_ds = Heimdall.df_to_dataset(test, shuffle=False, batch_size=batch_size)
+
+        all_inputs = []
+        encoded_features = []
+
+        # Numerical features.
+        for header in ['PhotoAmt', 'Fee']:
+            numeric_col = tf.keras.Input(shape=(1,), name=header)
+            normalization_layer = Heimdall.get_normalization_layer(header, train_ds)
+            encoded_numeric_col = normalization_layer(numeric_col)
+            all_inputs.append(numeric_col)
+            encoded_features.append(encoded_numeric_col)
+
     def closeDatabase(self):
         self.__DATABASE.close()
 
@@ -229,5 +283,6 @@ class Heimdall:
 if __name__ == "__main__":
     logging.basicConfig(level="INFO")
     h = Heimdall()
-    h.setup_dataframes()
+    train,val,test = h.setup_dataframes()
+    # h.testing_code(train,val,test)
     h.closeDatabase()
