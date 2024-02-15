@@ -10,6 +10,8 @@ from keras.layers import StringLookup
 import tensorflow as tf
 from tensorflow import data as tf_data
 
+import tensorflow_decision_forests as tfdf
+
 from LabeledLogDB import LabeledLogDB
 
 class Heimdall:
@@ -225,54 +227,136 @@ class Heimdall:
         return [train,val,test]
     
     def testing_code(self,train,val,test):
-        print(len(train), 'training examples')
-        print(len(val), 'validation examples')
-        print(len(test), 'test examples')
+        # print(len(train), 'training examples')
+        # print(len(val), 'validation examples')
+        # print(len(test), 'test examples')
 
-        batch_size = 5
-        train_ds = Heimdall.df_to_dataset(train, batch_size=batch_size)
+        # batch_size = 5
+        # train_ds = Heimdall.df_to_dataset(train, batch_size=batch_size)
 
-        [(train_features, label_batch)] = train_ds.take(1)
-        print('Every feature:', list(train_features.keys()))
-        print('A batch of dst_ports:', train_features['dst_port'])
-        print('A batch of targets:', label_batch )
+        # [(train_features, label_batch)] = train_ds.take(1)
+        # print('Every feature:', list(train_features.keys()))
+        # print('A batch of dst_ports:', train_features['dst_port'])
+        # print('A batch of targets:', label_batch )
 
-        dst_port_col = train_features['dst_port']
-        layer = Heimdall.get_normalization_layer('dst_port', train_ds)
-        print(layer(dst_port_col))
+        # dst_port_col = train_features['dst_port']
+        # layer = Heimdall.get_normalization_layer('dst_port', train_ds)
+        # print(layer(dst_port_col))
 
-        test_proto_col = train_features['proto']
-        test_proto_layer = Heimdall.get_category_encoding_layer(
-            name='proto',
-            dataset=train_ds,
-            dtype='string'
-        )
-        print(test_proto_layer(test_proto_col))
+        # test_proto_col = train_features['proto']
+        # test_proto_layer = Heimdall.get_category_encoding_layer(
+        #     name='proto',
+        #     dataset=train_ds,
+        #     dtype='string'
+        # )
+        # print(test_proto_layer(test_proto_col))
 
-        test_dst_port_col = train_features['dst_port']
-        test_dst_port_layer = Heimdall.get_category_encoding_layer(
-            name='dst_port',
-            dataset=train_ds,
-            dtype='int64',
-            max_tokens=5
-        )
-        print(test_dst_port_layer(test_dst_port_col))
+        # test_dst_port_col = train_features['dst_port']
+        # test_dst_port_layer = Heimdall.get_category_encoding_layer(
+        #     name='dst_port',
+        #     dataset=train_ds,
+        #     dtype='int64',
+        #     max_tokens=5
+        # )
+        # print(test_dst_port_layer(test_dst_port_col))
 
         batch_size = 256
-        train_ds = Heimdall.df_to_dataset(train, batch_size=batch_size)
-        val_ds = Heimdall.df_to_dataset(val, shuffle=False, batch_size=batch_size)
-        test_ds = Heimdall.df_to_dataset(test, shuffle=False, batch_size=batch_size)
+        train_ds =  Heimdall.df_to_dataset(train,                   batch_size=batch_size)
+        val_ds =    Heimdall.df_to_dataset(val,     shuffle=False,  batch_size=batch_size)
+        test_ds =   Heimdall.df_to_dataset(test,    shuffle=False,  batch_size=batch_size)
 
         all_inputs = []
         encoded_features = []
 
+        # Example for single numerical feature encoding
+        # age_col = tf.keras.Input(shape=(1,), name='Age', dtype='int64')
+        # encoding_layer = Heimdall.get_category_encoding_layer(
+        #     name='Age',
+        #     dataset=train_ds,
+        #     dtype='int64',
+        #     max_tokens=5
+        # )
+        # encoded_age_col = encoding_layer(age_col)
+        # all_inputs.append(age_col)
+        # encoded_features.append(encoded_age_col)
+
         # Numerical features.
-        for header in ['PhotoAmt', 'Fee']:
+        for header in self.__NUMERIC_FEATURE_NAMES:
             numeric_col = tf.keras.Input(shape=(1,), name=header)
             normalization_layer = Heimdall.get_normalization_layer(header, train_ds)
             encoded_numeric_col = normalization_layer(numeric_col)
             all_inputs.append(numeric_col)
             encoded_features.append(encoded_numeric_col)
+
+        # Categorical features.
+        for header in self.__CATEGORICAL_FEATURE_NAMES:
+            categorical_col = tf.keras.Input(shape=(1,), name=header, dtype='string')
+            encoding_layer = Heimdall.get_category_encoding_layer(
+                name=header,
+                dataset=train_ds,
+                dtype='string',
+                max_tokens=5
+            )
+            encoded_categorical_col = encoding_layer(categorical_col)
+            all_inputs.append(categorical_col)
+            encoded_features.append(encoded_categorical_col)
+        
+        # This is a testing model and will be replaced with a random forest
+        all_features = tf.keras.layers.concatenate(encoded_features)
+        x = tf.keras.layers.Dense(68, activation="relu")(all_features)
+        x = tf.keras.layers.Dropout(0.5)(x)
+        output = tf.keras.layers.Dense(1)(x)
+
+        model = tfdf.keras.RandomForestModel(verbose=2)
+        model.fit(train_ds)
+
+        # model = tf.keras.Model(all_inputs, output)
+        # model.compile(
+        #     optimizer='adam',
+        #     loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+        #     metrics=["accuracy"]
+        # )
+
+        # model.fit(train_ds, epochs=10, validation_data=val_ds)
+
+        # loss, accuracy = model.evaluate(test_ds)
+        # print("Accuracy", accuracy)
+
+        model.save('Heimdall_Basic.keras')
+        reloaded_model = tf.keras.models.load_model('Heimdall_Baisic.keras')
+
+        sample = {
+            'ts': 1551377744.163719,
+            'uid': 'CeGuVh3VK2bqRWuQEc',
+            'src_ip': '192.168.1.200',
+            'src_port': 38448,
+            'dst_ip': '1.1.1.1',
+            'dst_port': 23,
+            'proto': 'tcp',
+            'service': '-',
+            'duration': 3.141713,
+            'orig_bytes': 0,
+            'resp_bytes': 0,
+            'conn_state': 'S0',
+            'local_orig': '-',
+            'local_resp': '-',
+            'missed_bytes': 0,
+            'history': 's',
+            'orig_pkts': 6,
+            'orig_ip_bytes': 360,
+            'resp_pkts': 0,
+            'resp_ip_bytes': 0,
+            'tunnel_parents': '-'
+        }
+
+        input_dict = {name: tf.convert_to_tensor([value]) for name, value in sample.items()}
+        predictions = reloaded_model.predict(input_dict)
+        prob = tf.nn.sigmoid(predictions[0])
+
+        print(
+            "This particular log had a %.1f percent probability "
+            "of being malicious." % (100 * prob)
+        )
 
     def closeDatabase(self):
         self.__DATABASE.close()
@@ -284,5 +368,5 @@ if __name__ == "__main__":
     logging.basicConfig(level="INFO")
     h = Heimdall()
     train,val,test = h.setup_dataframes()
-    # h.testing_code(train,val,test)
+    h.testing_code(train,val,test)
     h.closeDatabase()
