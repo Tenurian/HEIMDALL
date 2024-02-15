@@ -148,37 +148,14 @@ class Heimdall:
         # Run the select_benign query and store it in a separate dataframe
         benign      = pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) 
 
-        df = pd.concat([malicious, benign])
-        # remove the filename and detailed_label columns
-        # df
-        # df = df.drop(columns=['filename', 'detailed_label', 'tunnel_parents'])
-
-        # df = df.fillna({
-        #     'filename'      : '-',
-        #     'ts'            : 0.0,
-        #     'uid'           : '-',
-        #     'src_ip'        : '-',
-        #     'src_port'      : 0,
-        #     'dst_ip'        : '-',
-        #     'dst_port'      : 0,
-        #     'proto'         : '-',
-        #     'service'       : '-',
-        #     'duration'      : 0.0,
-        #     'orig_bytes'    : 0,
-        #     'resp_bytes'    : 0,
-        #     'conn_state'    : '-',
-        #     'local_orig'    : '-',
-        #     'local_resp'    : '-',
-        #     'missed_bytes'  : 0,
-        #     'history'       : '-',
-        #     'orig_pkts'     : 0,
-        #     'orig_ip_bytes' : 0,
-        #     'resp_pkts'     : 0,
-        #     'resp_ip_bytes' : 0,
-        #     'tunnel_parents': '-'
-        # })
-
-        df = df.drop(columns=['filename', 'detailed_label']).fillna({
+        # remove the filename and detailed_label columns, fill null, and cast the data to appropriate types
+        df = pd.concat([
+            malicious, 
+            benign
+        ]).drop(columns=[
+            'filename',
+            'detailed_label'
+        ]).fillna({
             'ts'                : 0.0,
             'uid'               : '-',
             'src_ip'            : '-',
@@ -235,10 +212,10 @@ class Heimdall:
         val_ds =    Heimdall.df_to_dataset(val,   shuffle=False,  batch_size=batch_size)
         test_ds =   Heimdall.df_to_dataset(test,  shuffle=False,  batch_size=batch_size)
 
-        # for feature_batch, label_batch in train_ds.take(1):
-        #     print('Every feature:', list(feature_batch.keys()))
-        #     print('A batch of ages:', feature_batch['Age'])
-        #     print('A batch of targets:', label_batch )
+        for feature_batch, label_batch in train_ds.take(1):
+            print('Every feature:', list(feature_batch.keys()))
+            print('A batch of ages:', feature_batch['dst_port'])
+            print('A batch of targets:', label_batch )
 
         # Code above this line
         pass
