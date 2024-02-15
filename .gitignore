@@ -2,3 +2,4 @@
 .connlog.db
 .connlog.db*
 __pycache__
+.vscode
