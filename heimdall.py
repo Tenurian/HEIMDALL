@@ -261,7 +261,7 @@ class Heimdall:
         # print(test_dst_port_layer(test_dst_port_col))
 
         batch_size = 256
-        train_ds =  Heimdall.df_to_dataset(train,                   batch_size=batch_size)
+        train_ds =  Heimdall.df_to_dataset(train,   shuffle=False,  batch_size=batch_size)
         val_ds =    Heimdall.df_to_dataset(val,     shuffle=False,  batch_size=batch_size)
         test_ds =   Heimdall.df_to_dataset(test,    shuffle=False,  batch_size=batch_size)
 
