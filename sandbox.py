@@ -17,25 +17,55 @@ from datetime import datetime
 db = LabeledLogDB()
 db.setupDB()
 
+# All files
 # size_order = ['44','4','5','20','21','42','8','34','3','1','60','48','49','9','35','7','36','52','33','17','43','39']
-size_order = ['44','4','5','20','21','42','8','34','3','1']#'60','48','49','9','35','7','36','52','33','17','43','39']
+
+# Small files file < 0.5GB
+small_files = ['44','4','5','20','21','42','8','34','3','1', '60']
+
+# Medium files 0.5Gb <= File < 1.0Gb
+medium_files = ['48','49','9']
+
+# Large Files 1.0Gb <= File < 5.0Gb
+large_files = ['35','7','36','52']
+
+# Massive Files 5.0Gb <= File
+massive_files = ['33','17','43','39']
 
 # import os
 from glob import glob
 
 # directory = r"C:\Users\thomas.feuerborn\Documents\IoT Labeled Zeek Logs"
-directory = r"C:\Users\Spoon\Documents\IoT Labeled Zeek Logs"
+# directory = r"C:\Users\Spoon\Documents\IoT Labeled Zeek Logs"
+directory = r"../IoT Labeled Zeek Logs"
 
 logging.basicConfig(level='INFO')
 
 ## largest -> smallest
 # for i,prefix in enumerate(size_order[::-1]):
 # smallest -> largest 
-for i,prefix in enumerate(size_order):
-    print(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
-    for file in glob(f'{directory}\\*-{prefix}-1.conn.log.labeled'):
-        db.upsertLogfile(file)
-        print(db.size())
-        print()
+
+order = ['small', 'medium', 'large', 'massive']
+
+d = {
+    'small': small_files,
+    'medium': medium_files,
+    'large': large_files,
+    'massive': massive_files
+}
+
+logger = logging.getLogger('sandbox')
+logger.info('parsing small files')
+
+for size in order:
+    size_order = d[size]
+    logger.info(f'Reading the {size} files...')
+    for i,prefix in enumerate(size_order):
+        print(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
+        # for file in glob(f'{directory}\\*-{prefix}-1.conn.log.labeled'):
+        for file in glob(f'{directory}/*-{prefix}-1.conn.log.labeled'):
+            db.upsertLogfile(file)
+            print(db.size())
+            print()
     
 db.close()

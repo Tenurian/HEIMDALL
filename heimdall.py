@@ -12,6 +12,8 @@ from tensorflow import data as tf_data
 
 import tensorflow_decision_forests as tfdf
 
+from sklearn.preprocessing import OneHotEncoder
+
 from LabeledLogDB import LabeledLogDB
 
 class Heimdall:
@@ -159,13 +161,14 @@ class Heimdall:
         self.__DATABASE             = DATABASE
         self.__LOGGER = logging.getLogger('HEIMDALL')
         self.__LOGGER.info('Class loaded with provided values or defaults.')
-        pass
 
-    def setup_dataframes(self, LIMIT = 100000):
+    def setup_dataframes(self, LIMIT = 1500000):
         self.__LOGGER.info(f'Reading {LIMIT} lines from database and transforming results into a pandas dataframe...')
         
-        select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT {LIMIT//2})'
-        select_benign       = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT {LIMIT//2})'
+        select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM())'
+        # select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT {LIMIT//2})'
+        select_benign       = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM())'
+        # select_benign       = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT {LIMIT//2})'
 
         malicious   = pd.read_sql_query(select_malicious,   self.__DATABASE.getConn())
         benign      = pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) 
@@ -224,137 +227,94 @@ class Heimdall:
 
         train, val, test = np.split(df.sample(frac=1), [int(0.8*len(df)), int(0.9*len(df))])
 
+        # enc = OneHotEncoder()
+        # # for cat in self.__CATEGORICAL_FEATURE_NAMES:
+        # #     train[cat] = enc.fit_transform(train[cat])
+        # #     val[cat]   = enc.fit_transform(  val[cat])
+        # #     test[cat]  = enc.fit_transform( test[cat])
+
         return [train,val,test]
     
     def testing_code(self,train,val,test):
-        # print(len(train), 'training examples')
-        # print(len(val), 'validation examples')
-        # print(len(test), 'test examples')
+        train_ds =  tfdf.keras.pd_dataframe_to_tf_dataset(train,    label='label')
+        val_ds =    tfdf.keras.pd_dataframe_to_tf_dataset(val,      label='label')
+        test_ds =   tfdf.keras.pd_dataframe_to_tf_dataset(test,     label='label')
 
-        # batch_size = 5
-        # train_ds = Heimdall.df_to_dataset(train, batch_size=batch_size)
-
-        # [(train_features, label_batch)] = train_ds.take(1)
-        # print('Every feature:', list(train_features.keys()))
-        # print('A batch of dst_ports:', train_features['dst_port'])
-        # print('A batch of targets:', label_batch )
-
-        # dst_port_col = train_features['dst_port']
-        # layer = Heimdall.get_normalization_layer('dst_port', train_ds)
-        # print(layer(dst_port_col))
-
-        # test_proto_col = train_features['proto']
-        # test_proto_layer = Heimdall.get_category_encoding_layer(
-        #     name='proto',
-        #     dataset=train_ds,
-        #     dtype='string'
-        # )
-        # print(test_proto_layer(test_proto_col))
-
-        # test_dst_port_col = train_features['dst_port']
-        # test_dst_port_layer = Heimdall.get_category_encoding_layer(
-        #     name='dst_port',
-        #     dataset=train_ds,
-        #     dtype='int64',
-        #     max_tokens=5
-        # )
-        # print(test_dst_port_layer(test_dst_port_col))
-
-        batch_size = 256
-        train_ds =  Heimdall.df_to_dataset(train,   shuffle=False,  batch_size=batch_size)
-        val_ds =    Heimdall.df_to_dataset(val,     shuffle=False,  batch_size=batch_size)
-        test_ds =   Heimdall.df_to_dataset(test,    shuffle=False,  batch_size=batch_size)
-
-        all_inputs = []
-        encoded_features = []
-
-        # Example for single numerical feature encoding
-        # age_col = tf.keras.Input(shape=(1,), name='Age', dtype='int64')
-        # encoding_layer = Heimdall.get_category_encoding_layer(
-        #     name='Age',
-        #     dataset=train_ds,
-        #     dtype='int64',
-        #     max_tokens=5
-        # )
-        # encoded_age_col = encoding_layer(age_col)
-        # all_inputs.append(age_col)
-        # encoded_features.append(encoded_age_col)
-
-        # Numerical features.
-        for header in self.__NUMERIC_FEATURE_NAMES:
-            numeric_col = tf.keras.Input(shape=(1,), name=header)
-            normalization_layer = Heimdall.get_normalization_layer(header, train_ds)
-            encoded_numeric_col = normalization_layer(numeric_col)
-            all_inputs.append(numeric_col)
-            encoded_features.append(encoded_numeric_col)
-
-        # Categorical features.
-        for header in self.__CATEGORICAL_FEATURE_NAMES:
-            categorical_col = tf.keras.Input(shape=(1,), name=header, dtype='string')
-            encoding_layer = Heimdall.get_category_encoding_layer(
-                name=header,
-                dataset=train_ds,
-                dtype='string',
-                max_tokens=5
+        if not self.__model:
+            self.__model = tfdf.keras.RandomForestModel(
+                verbose=2
             )
-            encoded_categorical_col = encoding_layer(categorical_col)
-            all_inputs.append(categorical_col)
-            encoded_features.append(encoded_categorical_col)
-        
-        # This is a testing model and will be replaced with a random forest
-        all_features = tf.keras.layers.concatenate(encoded_features)
-        x = tf.keras.layers.Dense(68, activation="relu")(all_features)
-        x = tf.keras.layers.Dropout(0.5)(x)
-        output = tf.keras.layers.Dense(1)(x)
+        self.__model.compile(metrics=["accuracy"])
 
-        model = tfdf.keras.RandomForestModel(verbose=2)
-        model.fit(train_ds)
+        self.__model.fit(train_ds)
+        loss, accuracy = self.__model.evaluate(test_ds)
+        print(f'Accuracy: {accuracy}')
 
-        # model = tf.keras.Model(all_inputs, output)
-        # model.compile(
-        #     optimizer='adam',
-        #     loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
-        #     metrics=["accuracy"]
-        # )
-
-        # model.fit(train_ds, epochs=10, validation_data=val_ds)
-
-        # loss, accuracy = model.evaluate(test_ds)
-        # print("Accuracy", accuracy)
-
-        model.save('Heimdall_Basic.keras')
-        reloaded_model = tf.keras.models.load_model('Heimdall_Baisic.keras')
-
-        sample = {
-            'ts': 1551377744.163719,
-            'uid': 'CeGuVh3VK2bqRWuQEc',
-            'src_ip': '192.168.1.200',
-            'src_port': 38448,
-            'dst_ip': '1.1.1.1',
-            'dst_port': 23,
+        # Known Malicious
+        # 1547065514.872602       CgFbih6Hfauh83DUh       192.168.1.194   59106   82.76.255.62    6667    tcp     irc     9.079338        337     2462    RSTR    -       -       0       ShwAadDfr       14      917     13      2986    -   Malicious   C&C
+        malicious_sample = {
+            'ts': 1547065514.872602,
+            'uid': 'CgFbih6Hfauh83DUh',
+            'src_ip': '192.168.1.194',
+            'src_port': 59106,
+            'dst_ip': '82.76.255.62',
+            'dst_port': 6667,
             'proto': 'tcp',
-            'service': '-',
-            'duration': 3.141713,
-            'orig_bytes': 0,
-            'resp_bytes': 0,
-            'conn_state': 'S0',
+            'service': 'irc',
+            'duration': 9.079338,
+            'orig_bytes': 337,
+            'resp_bytes': 2462,
+            'conn_state': 'RSTR',
             'local_orig': '-',
             'local_resp': '-',
             'missed_bytes': 0,
-            'history': 's',
-            'orig_pkts': 6,
-            'orig_ip_bytes': 360,
-            'resp_pkts': 0,
-            'resp_ip_bytes': 0,
+            'history': 'ShwAadDfr',
+            'orig_pkts': 14,
+            'orig_ip_bytes': 917,
+            'resp_pkts': 13,
+            'resp_ip_bytes': 2986,
             'tunnel_parents': '-'
         }
 
-        input_dict = {name: tf.convert_to_tensor([value]) for name, value in sample.items()}
-        predictions = reloaded_model.predict(input_dict)
-        prob = tf.nn.sigmoid(predictions[0])
+        # Known Benign
+        # 1547065514.852869       Cfv55W26MMly0nePie      192.168.1.194   42940   192.168.1.1     53      udp     dns     0.018234        92      171     SF      -       -       0       Dd      2       148     2       227     -   Benign   -
+        benign_sample = {
+            'ts': 1547065514.852869,
+            'uid': 'Cfv55W26MMly0nePie',
+            'src_ip': '192.168.1.194',
+            'src_port': 42940,
+            'dst_ip': '192.168.1.1',
+            'dst_port': 53,
+            'proto': 'udp',
+            'service': 'dns',
+            'duration': 0.018234,
+            'orig_bytes': 92,
+            'resp_bytes': 171,
+            'conn_state': 'SF',
+            'local_orig': '-',
+            'local_resp': '-',
+            'missed_bytes': 0,
+            'history': 'Dd',
+            'orig_pkts': 2,
+            'orig_ip_bytes': 148,
+            'resp_pkts': 2,
+            'resp_ip_bytes': 227,
+            'tunnel_parents': '-'
+        }
 
+        input_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
+        predictions = self.__model.predict(input_dict)
+        prob = tf.nn.sigmoid(predictions[0])
         print(
-            "This particular log had a %.1f percent probability "
+            "The malicious sample had a %.1f percent probability "
+            "of being malicious." % (100 * prob)
+        )
+
+        input_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
+        predictions = self.__model.predict(input_dict)
+        prob = tf.nn.sigmoid(predictions[0])
+        print(
+            "The benign sample had a %.1f percent probability "
             "of being malicious." % (100 * prob)
         )
 
@@ -364,9 +324,29 @@ class Heimdall:
     def run(self):
         pass
 
+    def loadModel(self):
+        self.__LOGGER.info('Attempting to load model from disk.')
+        try:
+            self.__model = tf.keras.models.load_model('Heimdall_Basic.keras')
+            self.__LOGGER.info('Model successfully loaded from disk.')
+        except:
+            self.__LOGGER.error('Could not load model from disk.')
+        pass
+
+    def saveModel(self):
+        self.__LOGGER.info('Attempting to save model to disk.')
+        try:
+            self.__model.save('Heimdall_Basic.keras')
+            self.__LOGGER.info('Model successfully saveed to disk.')
+        except:
+            self.__LOGGER.error('Could not save model to disk.')
+        pass
+
 if __name__ == "__main__":
     logging.basicConfig(level="INFO")
     h = Heimdall()
+    h.loadModel()
     train,val,test = h.setup_dataframes()
     h.testing_code(train,val,test)
+    h.saveModel()
     h.closeDatabase()
