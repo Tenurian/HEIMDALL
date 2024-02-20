@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 
 from utils.ProgressBar import printProgressBar
+from tqdm import tqdm
 
 class LabeledLogDB:
     __conn = None
@@ -19,7 +20,7 @@ class LabeledLogDB:
         try:
             self.__cursor = self.__conn.cursor()
         except Error as e:
-            self.__logger.error(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Unable to connect to database. {e}')
+            self.__logger.error(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Unable to connect to database. {e}')
             exit(1)
         pass
 
@@ -27,7 +28,7 @@ class LabeledLogDB:
         return self.__conn
 
     def setupDB(self):
-        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Creating Table')
+        self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Creating Table')
         self.__cursor.execute("""
 CREATE TABLE IF NOT EXISTS conn_logs (
     filename text NOT NULL,
@@ -58,7 +59,7 @@ CREATE TABLE IF NOT EXISTS conn_logs (
         """)
 
     def upsertLogfile(self, file):
-        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Reading {os.path.basename(file)} and updating database...')
+        self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Reading {os.path.basename(file)} and updating database...')
 #         sql_command = f'''
 # INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,service,duration,orig_bytes,resp_bytes,conn_state,local_orig,local_resp,missed_bytes,history,orig_pkts,orig_ip_bytes,resp_pkts,resp_ip_bytes,tunnel_parents,label,detailed_label) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 #     ON CONFLICT(uid) DO UPDATE SET filename = ?,ts = ?,src_ip = ?,src_port = ?,dst_ip = ?,dst_port = ?,proto = ?,service = ?,duration = ?,orig_bytes = ?,resp_bytes = ?,conn_state = ?,local_orig = ?,local_resp = ?,missed_bytes = ?,history = ?,orig_pkts = ?,orig_ip_bytes = ?,resp_pkts = ?,resp_ip_bytes = ?,tunnel_parents = ?,label = ?,detailed_label = ?
@@ -68,13 +69,14 @@ INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,serv
     ON CONFLICT(uid) DO NOTHING
 '''
         lines = 0
-        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Counting lines in file')
+        self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Counting lines in file')
         with open(file, 'r') as logfile:
             lines = len(logfile.readlines())-1
-        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t {lines} lines found.')
-        self.__logger.info(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Parsing file & inserting data into database')
+        self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t {lines} lines found.')
+        self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Parsing file & inserting data into database')
         with open(file, 'r') as logfile:
-            for i,line in enumerate(logfile):
+            # for i,line in tqdm(logfile):
+            for line in tqdm(logfile, desc='Lines from File', total=lines):
                 if not line.startswith('#'):
                     f = lambda x: x if x != '-' else None
                     fields = [f(field) for field in [os.path.basename(file).split('.')[0], *line.split()]]
@@ -83,7 +85,7 @@ INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,serv
                     # self.__cursor.execute(sql_command, [*fields, *fields_no_uid])
                     self.__cursor.execute(sql_command, fields)
                     self.__conn.commit()
-                printProgressBar(iteration=i, total=lines, decimals=6)
+                # printProgressBar(iteration=i, total=lines, decimals=6)
             pass
         pass
 

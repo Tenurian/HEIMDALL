@@ -20,7 +20,7 @@ db.setupDB()
 # All files
 # size_order = ['44','4','5','20','21','42','8','34','3','1','60','48','49','9','35','7','36','52','33','17','43','39']
 
-# Small files file < 0.5GB
+# Small files File < 0.5GB
 small_files = ['44','4','5','20','21','42','8','34','3','1', '60']
 
 # Medium files 0.5Gb <= File < 1.0Gb
@@ -41,6 +41,8 @@ directory = r"../IoT Labeled Zeek Logs"
 
 logging.basicConfig(level='INFO')
 
+from tqdm import tqdm
+
 ## largest -> smallest
 # for i,prefix in enumerate(size_order[::-1]):
 # smallest -> largest 
@@ -57,15 +59,15 @@ d = {
 logger = logging.getLogger('sandbox')
 logger.info('parsing small files')
 
-for size in order:
+for size in tqdm(order, desc="File Size Categories", total=4):
     size_order = d[size]
     logger.info(f'Reading the {size} files...')
-    for i,prefix in enumerate(size_order):
-        print(f'({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
+    for i,prefix in tqdm(enumerate(size_order), desc="Files in Category", total=len(size_order)):
+        logger.info(f'\t\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
         # for file in glob(f'{directory}\\*-{prefix}-1.conn.log.labeled'):
         for file in glob(f'{directory}/*-{prefix}-1.conn.log.labeled'):
             db.upsertLogfile(file)
-            print(db.size())
+            logger.info(db.size())
             print()
     
 db.close()
