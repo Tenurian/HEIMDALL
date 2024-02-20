@@ -41,8 +41,6 @@ directory = r"../IoT Labeled Zeek Logs"
 
 logging.basicConfig(level='INFO')
 
-from tqdm import tqdm
-
 ## largest -> smallest
 # for i,prefix in enumerate(size_order[::-1]):
 # smallest -> largest 
@@ -59,10 +57,10 @@ d = {
 logger = logging.getLogger('sandbox')
 logger.info('parsing small files')
 
-for size in tqdm(order, desc="File Size Categories", total=4):
+for size in order:
     size_order = d[size]
     logger.info(f'Reading the {size} files...')
-    for i,prefix in tqdm(enumerate(size_order), desc="Files in Category", total=len(size_order)):
+    for i,prefix in enumerate(size_order):
         logger.info(f'\t\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
         # for file in glob(f'{directory}\\*-{prefix}-1.conn.log.labeled'):
         for file in glob(f'{directory}/*-{prefix}-1.conn.log.labeled'):
