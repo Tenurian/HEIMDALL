@@ -162,68 +162,133 @@ class Heimdall:
         self.__LOGGER = logging.getLogger('HEIMDALL')
         self.__LOGGER.info('Class loaded with provided values or defaults.')
 
-    def setup_dataframes(self, LIMIT = 1500000):
-        self.__LOGGER.info(f'Reading {LIMIT} lines from database and transforming results into a pandas dataframe...')
-        
-        select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM())'
-        # select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT {LIMIT//2})'
-        select_benign       = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM())'
-        # select_benign       = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT {LIMIT//2})'
+    def setup_dataframes(self, LIMIT=None):
 
-        malicious   = pd.read_sql_query(select_malicious,   self.__DATABASE.getConn())
-        benign      = pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) 
-        # remove the filename and detailed_label columns, fill null, and cast the data to appropriate types
-        df = pd.concat([
-            malicious, 
-            benign
-        ]).drop(columns=[
-            'filename',
-            'detailed_label'
-        ]).fillna({
-            'ts'                : 0.0,
-            'uid'               : '-',
-            'src_ip'            : '-',
-            'src_port'          : 0,
-            'dst_ip'            : '-',
-            'dst_port'          : 0,
-            'proto'             : '-',
-            'service'           : '-',
-            'duration'          : 0.0,
-            'orig_bytes'        : 0,
-            'resp_bytes'        : 0,
-            'conn_state'        : '-',
-            'local_orig'        : '-',
-            'local_resp'        : '-',
-            'missed_bytes'      : 0,
-            'history'           : '-',
-            'orig_pkts'         : 0,
-            'orig_ip_bytes'     : 0,
-            'resp_pkts'         : 0,
-            'resp_ip_bytes'     : 0,
-            'tunnel_parents'    : '-'
-        }).astype({
-            'ts'                : 'f', 
-            'uid'               : 'U',
-            'src_ip'            : 'U',
-            'src_port'          : 'i',
-            'dst_ip'            : 'U',
-            'dst_port'          : 'i',
-            'proto'             : 'U',
-            'service'           : 'U',
-            'duration'          : 'f',
-            'orig_bytes'        : 'i',
-            'resp_bytes'        : 'i',
-            'conn_state'        : 'U',
-            'local_orig'        : 'U',
-            'local_resp'        : 'U',
-            'missed_bytes'      : 'i',
-            'history'           : 'U',
-            'orig_pkts'         : 'i',
-            'orig_ip_bytes'     : 'i',
-            'resp_pkts'         : 'i',
-            'resp_ip_bytes'     : 'i',
-            'tunnel_parents'    : 'U'
-        })
+        # select_benign       = None
+        # select_malicious    = None
+
+        df = None
+
+        if LIMIT:
+            self.__LOGGER.info(f'Reading {LIMIT} lines from database and transforming results into a pandas dataframe...')
+            select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT {LIMIT//2})'
+            select_benign       = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT {LIMIT//2})'
+            self.__LOGGER.info('Getting malicious logs...')
+            malicious   = pd.read_sql_query(select_malicious,   self.__DATABASE.getConn())
+            self.__LOGGER.info('Done.')
+            self.__LOGGER.info('Getting benign logs...')
+            benign      = pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) 
+            self.__LOGGER.info('Done.')
+
+            # remove the filename and detailed_label columns, fill null, and cast the data to appropriate types
+            df = pd.concat([
+                malicious, 
+                benign
+            ]).drop(columns=[
+                'filename',
+                'detailed_label'
+            ]).fillna({
+                'ts'                : 0.0,
+                'uid'               : '-',
+                'src_ip'            : '-',
+                'src_port'          : 0,
+                'dst_ip'            : '-',
+                'dst_port'          : 0,
+                'proto'             : '-',
+                'service'           : '-',
+                'duration'          : 0.0,
+                'orig_bytes'        : 0,
+                'resp_bytes'        : 0,
+                'conn_state'        : '-',
+                'local_orig'        : '-',
+                'local_resp'        : '-',
+                'missed_bytes'      : 0,
+                'history'           : '-',
+                'orig_pkts'         : 0,
+                'orig_ip_bytes'     : 0,
+                'resp_pkts'         : 0,
+                'resp_ip_bytes'     : 0,
+                'tunnel_parents'    : '-'
+            }).astype({
+                'ts'                : 'f', 
+                'uid'               : 'U',
+                'src_ip'            : 'U',
+                'src_port'          : 'i',
+                'dst_ip'            : 'U',
+                'dst_port'          : 'i',
+                'proto'             : 'U',
+                'service'           : 'U',
+                'duration'          : 'f',
+                'orig_bytes'        : 'i',
+                'resp_bytes'        : 'i',
+                'conn_state'        : 'U',
+                'local_orig'        : 'U',
+                'local_resp'        : 'U',
+                'missed_bytes'      : 'i',
+                'history'           : 'U',
+                'orig_pkts'         : 'i',
+                'orig_ip_bytes'     : 'i',
+                'resp_pkts'         : 'i',
+                'resp_ip_bytes'     : 'i',
+                'tunnel_parents'    : 'U'
+            })
+        else:
+            self.__LOGGER.info('Reading all logs from database and transforming results into a pandas dataframe...')
+            select_all  = f'SELECT * FROM conn_logs'
+            self.__LOGGER.info('querying database...')
+            all         = pd.read_sql_query(select_all, self.__DATABASE.getConn())
+            self.__LOGGER.info('Done')
+            self.__LOGGER.info('Transforming dataframe...')
+            df = all.drop(columns=[
+                'filename',
+                'detailed_label'
+            ]).fillna({
+                'ts'                : 0.0,
+                'uid'               : '-',
+                'src_ip'            : '-',
+                'src_port'          : 0,
+                'dst_ip'            : '-',
+                'dst_port'          : 0,
+                'proto'             : '-',
+                'service'           : '-',
+                'duration'          : 0.0,
+                'orig_bytes'        : 0,
+                'resp_bytes'        : 0,
+                'conn_state'        : '-',
+                'local_orig'        : '-',
+                'local_resp'        : '-',
+                'missed_bytes'      : 0,
+                'history'           : '-',
+                'orig_pkts'         : 0,
+                'orig_ip_bytes'     : 0,
+                'resp_pkts'         : 0,
+                'resp_ip_bytes'     : 0,
+                'tunnel_parents'    : '-'
+            }).astype({
+                'ts'                : 'f', 
+                'uid'               : 'U',
+                'src_ip'            : 'U',
+                'src_port'          : 'i',
+                'dst_ip'            : 'U',
+                'dst_port'          : 'i',
+                'proto'             : 'U',
+                'service'           : 'U',
+                'duration'          : 'f',
+                'orig_bytes'        : 'i',
+                'resp_bytes'        : 'i',
+                'conn_state'        : 'U',
+                'local_orig'        : 'U',
+                'local_resp'        : 'U',
+                'missed_bytes'      : 'i',
+                'history'           : 'U',
+                'orig_pkts'         : 'i',
+                'orig_ip_bytes'     : 'i',
+                'resp_pkts'         : 'i',
+                'resp_ip_bytes'     : 'i',
+                'tunnel_parents'    : 'U'
+            })
+            self.__LOGGER.info('Done')
+
 
         train, val, test = np.split(df.sample(frac=1), [int(0.8*len(df)), int(0.9*len(df))])
 
@@ -328,6 +393,7 @@ class Heimdall:
         self.__LOGGER.info('Attempting to load model from disk.')
         try:
             self.__model = tf.keras.models.load_model('Heimdall_Basic.keras')
+            self.__model.compile(metrics=["accuracy"])
             self.__LOGGER.info('Model successfully loaded from disk.')
         except:
             self.__LOGGER.error('Could not load model from disk.')
@@ -346,7 +412,8 @@ if __name__ == "__main__":
     logging.basicConfig(level="INFO")
     h = Heimdall()
     h.loadModel()
-    train,val,test = h.setup_dataframes()
-    h.testing_code(train,val,test)
-    h.saveModel()
+    for i in range(3):
+        train,val,test = h.setup_dataframes(LIMIT=1000000)
+        h.testing_code(train,val,test)
+        h.saveModel()
     h.closeDatabase()
