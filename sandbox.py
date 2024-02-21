@@ -48,18 +48,18 @@ logging.basicConfig(level='INFO')
 order = ['small', 'medium', 'large', 'massive']
 
 d = {
-    'small': small_files,
-    'medium': medium_files,
-    'large': large_files,
-    'massive': massive_files
+    'small': {'arr': small_files, 'desc': 'File < 0.5GB'},
+    'medium': {'arr': medium_files, 'desc': '0.5Gb <= File < 1.0Gb'},
+    'large': {'arr': large_files, 'desc': '1.0Gb <= File < 5.0Gb'},
+    'massive': {'arr': massive_files, 'desc': '5.0Gb <= File'}
 }
 
 logger = logging.getLogger('sandbox')
-logger.info('parsing small files')
+# logger.info('parsing small files')
 
-for size in order:
-    size_order = d[size]
-    logger.info(f'Reading the {size} files...')
+for size in order[1::]:
+    size_order = d[size]['arr']
+    logger.info(f'Reading the {size} ({d[size]["desc"]}) files...')
     for i,prefix in enumerate(size_order):
         logger.info(f'\t\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
         # for file in glob(f'{directory}\\*-{prefix}-1.conn.log.labeled'):

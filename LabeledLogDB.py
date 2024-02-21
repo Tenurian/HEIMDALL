@@ -76,7 +76,13 @@ INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,serv
         self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Parsing file & inserting data into database')
         with open(file, 'r') as logfile:
             # for i,line in tqdm(logfile):
-            for line in tqdm(logfile, desc='Lines from File', total=lines, maxinterval=1.0):
+            for line in tqdm(
+                logfile,
+                desc='Lines from File',
+                total=lines,
+                maxinterval=1.0,
+                unit=' logs'
+            ):
                 if not line.startswith('#'):
                     f = lambda x: x if x != '-' else None
                     fields = [f(field) for field in [os.path.basename(file).split('.')[0], *line.split()]]
