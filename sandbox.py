@@ -57,7 +57,7 @@ d = {
 logger = logging.getLogger('sandbox')
 # logger.info('parsing small files')
 
-for size in order[1::]:
+for size in order[2::]:
     size_order = d[size]['arr']
     logger.info(f'Reading the {size} ({d[size]["desc"]}) files...')
     for i,prefix in enumerate(size_order):

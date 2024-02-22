@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import pandas as pd
 import math
+from time import sleep
 
 import keras
 from keras import layers
@@ -183,57 +184,7 @@ class Heimdall:
             self.__LOGGER.info('Done.')
 
             # remove the filename and detailed_label columns, fill null, and cast the data to appropriate types
-            df = pd.concat([
-                malicious, 
-                benign
-            ]).drop(columns=[
-                'filename',
-                'detailed_label'
-            ]).fillna({
-                'ts'                : 0.0,
-                'uid'               : '-',
-                'src_ip'            : '-',
-                'src_port'          : 0,
-                'dst_ip'            : '-',
-                'dst_port'          : 0,
-                'proto'             : '-',
-                'service'           : '-',
-                'duration'          : 0.0,
-                'orig_bytes'        : 0,
-                'resp_bytes'        : 0,
-                'conn_state'        : '-',
-                'local_orig'        : '-',
-                'local_resp'        : '-',
-                'missed_bytes'      : 0,
-                'history'           : '-',
-                'orig_pkts'         : 0,
-                'orig_ip_bytes'     : 0,
-                'resp_pkts'         : 0,
-                'resp_ip_bytes'     : 0,
-                'tunnel_parents'    : '-'
-            }).astype({
-                'ts'                : 'f', 
-                'uid'               : 'U',
-                'src_ip'            : 'U',
-                'src_port'          : 'i',
-                'dst_ip'            : 'U',
-                'dst_port'          : 'i',
-                'proto'             : 'U',
-                'service'           : 'U',
-                'duration'          : 'f',
-                'orig_bytes'        : 'i',
-                'resp_bytes'        : 'i',
-                'conn_state'        : 'U',
-                'local_orig'        : 'U',
-                'local_resp'        : 'U',
-                'missed_bytes'      : 'i',
-                'history'           : 'U',
-                'orig_pkts'         : 'i',
-                'orig_ip_bytes'     : 'i',
-                'resp_pkts'         : 'i',
-                'resp_ip_bytes'     : 'i',
-                'tunnel_parents'    : 'U'
-            })
+            df = self.__strip_labels_from_df(pd.concat([malicious, benign]))
         else:
             self.__LOGGER.info('Reading all logs from database and transforming results into a pandas dataframe...')
             select_all  = f'SELECT * FROM conn_logs'
@@ -241,54 +192,7 @@ class Heimdall:
             all         = pd.read_sql_query(select_all, self.__DATABASE.getConn())
             self.__LOGGER.info('Done')
             self.__LOGGER.info('Transforming dataframe...')
-            df = all.drop(columns=[
-                'filename',
-                'detailed_label'
-            ]).fillna({
-                'ts'                : 0.0,
-                'uid'               : '-',
-                'src_ip'            : '-',
-                'src_port'          : 0,
-                'dst_ip'            : '-',
-                'dst_port'          : 0,
-                'proto'             : '-',
-                'service'           : '-',
-                'duration'          : 0.0,
-                'orig_bytes'        : 0,
-                'resp_bytes'        : 0,
-                'conn_state'        : '-',
-                'local_orig'        : '-',
-                'local_resp'        : '-',
-                'missed_bytes'      : 0,
-                'history'           : '-',
-                'orig_pkts'         : 0,
-                'orig_ip_bytes'     : 0,
-                'resp_pkts'         : 0,
-                'resp_ip_bytes'     : 0,
-                'tunnel_parents'    : '-'
-            }).astype({
-                'ts'                : 'f', 
-                'uid'               : 'U',
-                'src_ip'            : 'U',
-                'src_port'          : 'i',
-                'dst_ip'            : 'U',
-                'dst_port'          : 'i',
-                'proto'             : 'U',
-                'service'           : 'U',
-                'duration'          : 'f',
-                'orig_bytes'        : 'i',
-                'resp_bytes'        : 'i',
-                'conn_state'        : 'U',
-                'local_orig'        : 'U',
-                'local_resp'        : 'U',
-                'missed_bytes'      : 'i',
-                'history'           : 'U',
-                'orig_pkts'         : 'i',
-                'orig_ip_bytes'     : 'i',
-                'resp_pkts'         : 'i',
-                'resp_ip_bytes'     : 'i',
-                'tunnel_parents'    : 'U'
-            })
+            df = self.__strip_labels_from_df(all)
             self.__LOGGER.info('Done')
 
 
@@ -302,6 +206,68 @@ class Heimdall:
 
         return [train,val,test]
     
+    def __strip_labels_from_df(self,df):
+        return df.drop(columns=[
+                'filename',
+                'detailed_label'
+            ]).fillna({
+                'ts'                : 0.0,
+                'uid'               : '-',
+                'src_ip'            : '-',
+                'src_port'          : 0,
+                'dst_ip'            : '-',
+                'dst_port'          : 0,
+                'proto'             : '-',
+                'service'           : '-',
+                'duration'          : 0.0,
+                'orig_bytes'        : 0,
+                'resp_bytes'        : 0,
+                'conn_state'        : '-',
+                'local_orig'        : '-',
+                'local_resp'        : '-',
+                'missed_bytes'      : 0,
+                'history'           : '-',
+                'orig_pkts'         : 0,
+                'orig_ip_bytes'     : 0,
+                'resp_pkts'         : 0,
+                'resp_ip_bytes'     : 0,
+                'tunnel_parents'    : '-'
+            }).astype({
+                'ts'                : 'f', 
+                'uid'               : 'U',
+                'src_ip'            : 'U',
+                'src_port'          : 'i',
+                'dst_ip'            : 'U',
+                'dst_port'          : 'i',
+                'proto'             : 'U',
+                'service'           : 'U',
+                'duration'          : 'f',
+                'orig_bytes'        : 'i',
+                'resp_bytes'        : 'i',
+                'conn_state'        : 'U',
+                'local_orig'        : 'U',
+                'local_resp'        : 'U',
+                'missed_bytes'      : 'i',
+                'history'           : 'U',
+                'orig_pkts'         : 'i',
+                'orig_ip_bytes'     : 'i',
+                'resp_pkts'         : 'i',
+                'resp_ip_bytes'     : 'i',
+                'tunnel_parents'    : 'U'
+            })
+
+    def get_benign_log(self):
+        select_benign =     'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT 1)'
+        self.__LOGGER.info('Getting benign logs...')
+        benign      = self.__strip_labels_from_df(pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) )
+        return benign.iloc[0]
+
+    def get_malicious_log(self):
+        select_malicious =  'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT 1)'
+        self.__LOGGER.info('Getting malicious logs...')
+        malicious   = self.__strip_labels_from_df(pd.read_sql_query(select_malicious,   self.__DATABASE.getConn()))
+        return malicious.iloc[0]
+
     def testing_code(self,train,val,test):
         train_ds =  tfdf.keras.pd_dataframe_to_tf_dataset(train,    label='label')
         val_ds =    tfdf.keras.pd_dataframe_to_tf_dataset(val,      label='label')
@@ -319,55 +285,59 @@ class Heimdall:
 
         # Known Malicious
         # 1547065514.872602       CgFbih6Hfauh83DUh       192.168.1.194   59106   82.76.255.62    6667    tcp     irc     9.079338        337     2462    RSTR    -       -       0       ShwAadDfr       14      917     13      2986    -   Malicious   C&C
-        malicious_sample = {
-            'ts': 1547065514.872602,
-            'uid': 'CgFbih6Hfauh83DUh',
-            'src_ip': '192.168.1.194',
-            'src_port': 59106,
-            'dst_ip': '82.76.255.62',
-            'dst_port': 6667,
-            'proto': 'tcp',
-            'service': 'irc',
-            'duration': 9.079338,
-            'orig_bytes': 337,
-            'resp_bytes': 2462,
-            'conn_state': 'RSTR',
-            'local_orig': '-',
-            'local_resp': '-',
-            'missed_bytes': 0,
-            'history': 'ShwAadDfr',
-            'orig_pkts': 14,
-            'orig_ip_bytes': 917,
-            'resp_pkts': 13,
-            'resp_ip_bytes': 2986,
-            'tunnel_parents': '-'
-        }
+        # malicious_sample = {
+        #     'ts': 1547065514.872602,
+        #     'uid': 'CgFbih6Hfauh83DUh',
+        #     'src_ip': '192.168.1.194',
+        #     'src_port': 59106,
+        #     'dst_ip': '82.76.255.62',
+        #     'dst_port': 6667,
+        #     'proto': 'tcp',
+        #     'service': 'irc',
+        #     'duration': 9.079338,
+        #     'orig_bytes': 337,
+        #     'resp_bytes': 2462,
+        #     'conn_state': 'RSTR',
+        #     'local_orig': '-',
+        #     'local_resp': '-',
+        #     'missed_bytes': 0,
+        #     'history': 'ShwAadDfr',
+        #     'orig_pkts': 14,
+        #     'orig_ip_bytes': 917,
+        #     'resp_pkts': 13,
+        #     'resp_ip_bytes': 2986,
+        #     'tunnel_parents': '-'
+        # }
+        malicious_sample = self.get_malicious_log()
 
         # Known Benign
         # 1547065514.852869       Cfv55W26MMly0nePie      192.168.1.194   42940   192.168.1.1     53      udp     dns     0.018234        92      171     SF      -       -       0       Dd      2       148     2       227     -   Benign   -
-        benign_sample = {
-            'ts': 1547065514.852869,
-            'uid': 'Cfv55W26MMly0nePie',
-            'src_ip': '192.168.1.194',
-            'src_port': 42940,
-            'dst_ip': '192.168.1.1',
-            'dst_port': 53,
-            'proto': 'udp',
-            'service': 'dns',
-            'duration': 0.018234,
-            'orig_bytes': 92,
-            'resp_bytes': 171,
-            'conn_state': 'SF',
-            'local_orig': '-',
-            'local_resp': '-',
-            'missed_bytes': 0,
-            'history': 'Dd',
-            'orig_pkts': 2,
-            'orig_ip_bytes': 148,
-            'resp_pkts': 2,
-            'resp_ip_bytes': 227,
-            'tunnel_parents': '-'
-        }
+        # benign_sample = {
+        #     'ts': 1547065514.852869,
+        #     'uid': 'Cfv55W26MMly0nePie',
+        #     'src_ip': '192.168.1.194',
+        #     'src_port': 42940,
+        #     'dst_ip': '192.168.1.1',
+        #     'dst_port': 53,
+        #     'proto': 'udp',
+        #     'service': 'dns',
+        #     'duration': 0.018234,
+        #     'orig_bytes': 92,
+        #     'resp_bytes': 171,
+        #     'conn_state': 'SF',
+        #     'local_orig': '-',
+        #     'local_resp': '-',
+        #     'missed_bytes': 0,
+        #     'history': 'Dd',
+        #     'orig_pkts': 2,
+        #     'orig_ip_bytes': 148,
+        #     'resp_pkts': 2,
+        #     'resp_ip_bytes': 227,
+        #     'tunnel_parents': '-'
+        # }
+        benign_sample = self.get_benign_log()
+
+
 
         input_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
         predictions = self.__model.predict(input_dict)
@@ -414,10 +384,15 @@ if __name__ == "__main__":
     logging.basicConfig(level="INFO")
     h = Heimdall()
     h.loadModel()
-    for i in tqdm(range(10)):
-        train,val,test = h.setup_dataframes(LIMIT=500000)
-        h.testing_code(train,val,test)
-    h.saveModel()
+    for i in tqdm(range(5), desc="Batches", unit="batch"):
+        for i in tqdm(range(20), desc="Iterations"):
+            train,val,test = h.setup_dataframes(LIMIT=50000)
+            h.testing_code(train,val,test)
+            sleep(2)
+            print()
+        h.saveModel()
+        sleep(5)
+        print()
     # train,val,test = h.setup_dataframes()
     # h.testing_code(train,val,test)
     # h.saveModel()
