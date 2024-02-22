@@ -260,12 +260,14 @@ class Heimdall:
         select_benign =     'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT 1)'
         self.__LOGGER.info('Getting benign logs...')
         benign      = self.__strip_labels_from_df(pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) )
+        benign      = benign.drop(columns=['label'])
         return benign.iloc[0]
 
     def get_malicious_log(self):
         select_malicious =  'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT 1)'
         self.__LOGGER.info('Getting malicious logs...')
         malicious   = self.__strip_labels_from_df(pd.read_sql_query(select_malicious,   self.__DATABASE.getConn()))
+        malicious   = malicious.drop(columns=['label'])
         return malicious.iloc[0]
 
     def testing_code(self,train,val,test):
