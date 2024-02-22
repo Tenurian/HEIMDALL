@@ -16,6 +16,8 @@ from sklearn.preprocessing import OneHotEncoder
 
 from LabeledLogDB import LabeledLogDB
 
+from tqdm import tqdm
+
 class Heimdall:
     """
     The HEIMDALL model class.
@@ -162,7 +164,7 @@ class Heimdall:
         self.__LOGGER = logging.getLogger('HEIMDALL')
         self.__LOGGER.info('Class loaded with provided values or defaults.')
 
-    def setup_dataframes(self, LIMIT=None):
+    def setup_dataframes(self, LIMIT=10000000):
 
         # select_benign       = None
         # select_malicious    = None
@@ -412,8 +414,11 @@ if __name__ == "__main__":
     logging.basicConfig(level="INFO")
     h = Heimdall()
     h.loadModel()
-    for i in range(3):
-        train,val,test = h.setup_dataframes(LIMIT=1000000)
+    for i in tqdm(range(10)):
+        train,val,test = h.setup_dataframes(LIMIT=500000)
         h.testing_code(train,val,test)
-        h.saveModel()
+    h.saveModel()
+    # train,val,test = h.setup_dataframes()
+    # h.testing_code(train,val,test)
+    # h.saveModel()
     h.closeDatabase()
