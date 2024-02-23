@@ -1,5 +1,5 @@
 .venv
-.linux-venv
+.linux_venv
 .connlog.db
 .connlog.db*
 __pycache__
