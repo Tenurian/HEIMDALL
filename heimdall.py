@@ -13,7 +13,7 @@ from tensorflow import data as tf_data
 
 import tensorflow_decision_forests as tfdf
 
-from sklearn.preprocessing import OneHotEncoder
+# from sklearn.preprocessing import OneHotEncoder
 
 from LabeledLogDB import LabeledLogDB
 
