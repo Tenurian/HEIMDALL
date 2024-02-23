@@ -260,14 +260,14 @@ class Heimdall:
 
     def get_benign_log(self):
         select_benign =     'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT 1)'
-        self.__LOGGER.info('Getting benign logs...')
+        self.__LOGGER.info('Getting benign log...')
         benign      = self.__strip_labels_from_df(pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) )
         benign      = benign.drop(columns=['label'])
         return benign.iloc[0]
 
     def get_malicious_log(self):
         select_malicious =  'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT 1)'
-        self.__LOGGER.info('Getting malicious logs...')
+        self.__LOGGER.info('Getting malicious log...')
         malicious   = self.__strip_labels_from_df(pd.read_sql_query(select_malicious,   self.__DATABASE.getConn()))
         malicious   = malicious.drop(columns=['label'])
         return malicious.iloc[0]
@@ -387,19 +387,23 @@ class Heimdall:
 if __name__ == "__main__":
     logging.basicConfig(level="INFO")
     h = Heimdall()
-    h.loadModel()
-    for i in tqdm(range(5), desc="Batches", unit="batch"):
-        print()
-        for i in tqdm(range(20), desc="Iterations"):
+    try:
+        h.loadModel()
+        for i in tqdm(range(5), desc="Batches", unit="batch"):
             print()
-            train,val,test = h.setup_dataframes(LIMIT=50000)
-            h.testing_code(train,val,test)
-            sleep(2)
+            for i in tqdm(range(20), desc="Iterations"):
+                print()
+                train,val,test = h.setup_dataframes(LIMIT=50000)
+                h.testing_code(train,val,test)
+                sleep(2)
+                print()
+            h.saveModel()
+            sleep(5)
             print()
-        h.saveModel()
-        sleep(5)
-        print()
-    # train,val,test = h.setup_dataframes()
-    # h.testing_code(train,val,test)
-    # h.saveModel()
-    h.closeDatabase()
+        # train,val,test = h.setup_dataframes()
+        # h.testing_code(train,val,test)
+        # h.saveModel()
+    except KeyboardInterrupt:
+        print('exiting')
+    finally:
+        h.closeDatabase()
