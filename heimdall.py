@@ -172,6 +172,8 @@ class Heimdall:
 
         df = None
 
+        print()
+
         if LIMIT:
             self.__LOGGER.info(f'Reading {LIMIT} lines from database and transforming results into a pandas dataframe...')
             select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT {LIMIT//2})'
@@ -387,7 +389,9 @@ if __name__ == "__main__":
     h = Heimdall()
     h.loadModel()
     for i in tqdm(range(5), desc="Batches", unit="batch"):
+        print()
         for i in tqdm(range(20), desc="Iterations"):
+            print()
             train,val,test = h.setup_dataframes(LIMIT=50000)
             h.testing_code(train,val,test)
             sleep(2)
