@@ -57,6 +57,8 @@ d = {
 logger = logging.getLogger('sandbox')
 # logger.info('parsing small files')
 
+logger.info(f'Current Database Size: {db.size()}')
+print()
 for size in order[2::]:
     size_order = d[size]['arr']
     logger.info(f'Reading the {size} ({d[size]["desc"]}) files...')
@@ -64,6 +66,7 @@ for size in order[2::]:
         logger.info(f'\t\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
         # for file in glob(f'{directory}\\*-{prefix}-1.conn.log.labeled'):
         for file in glob(f'{directory}/*-{prefix}-1.conn.log.labeled'):
+            # if db.countLogsFromFile(file)
             db.upsertLogfile(file)
             logger.info(db.size())
             print()

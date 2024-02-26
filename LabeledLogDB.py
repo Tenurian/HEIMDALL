@@ -70,29 +70,56 @@ INSERT INTO conn_logs(filename,ts,uid,src_ip,src_port,dst_ip,dst_port,proto,serv
 '''
         lines = 0
         self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Counting lines in file')
+        filelogcount = 0
         with open(file, 'r') as logfile:
             lines = len(logfile.readlines())-1
-        self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t {lines} lines found.')
-        self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Parsing file & inserting data into database')
+            filelogcount = lines - 8
+            # for line in logfile:
+            #     if not line.startswith('#'):
+        self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t {lines} lines ({filelogcount} logs) found.')
         with open(file, 'r') as logfile:
             # for i,line in tqdm(logfile):
-            for line in tqdm(
-                logfile,
-                desc='Lines from File',
-                total=lines,
-                maxinterval=1.0,
-                unit=' logs'
-            ):
-                if not line.startswith('#'):
-                    f = lambda x: x if x != '-' else None
-                    fields = [f(field) for field in [os.path.basename(file).split('.')[0], *line.split()]]
-                    # fields_no_uid = list(fields)
-                    # fields_no_uid.remove(fields[2])
-                    # self.__cursor.execute(sql_command, [*fields, *fields_no_uid])
-                    self.__cursor.execute(sql_command, fields)
-                    self.__conn.commit()
-                # printProgressBar(iteration=i, total=lines, decimals=6)
-            pass
+            self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Checking database for existing logs...')
+            dblogfilecount = self.countLogsByFile(file)
+            self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t {dblogfilecount} logs found in DB with filename {os.path.basename(file)}')
+
+            
+            if dblogfilecount != filelogcount:
+                if dblogfilecount != 0:
+                    self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Continuing parsing file & inserting data into database ( file:{filelogcount} ≠ db:{dblogfilecount} )')
+                else:
+                    self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Parsing file & inserting data into database')
+                line_number = 0
+                for line in tqdm(
+                    logfile,
+                    desc='Lines from File',
+                    total=lines,
+                    maxinterval=1.0,
+                    unit=' logs'
+                ):
+                    if line_number <= dblogfilecount-1:
+                        line_number+=1
+                        continue
+                    if not line.startswith('#'):
+                        f = lambda x: x if x != '-' else None
+                        fields = [f(field) for field in [os.path.basename(file).split('.')[0], *line.split()]]
+                        # fields_no_uid = list(fields)
+                        # fields_no_uid.remove(fields[2])
+                        # self.__cursor.execute(sql_command, [*fields, *fields_no_uid])
+                        self.__cursor.execute(sql_command, fields)
+                        self.__conn.commit()
+                    # printProgressBar(iteration=i, total=lines, decimals=6)
+                pass
+            else:
+                self.__logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")})\t Skipping fully-parsed logfile ( file:{filelogcount} = db:{dblogfilecount} )')
+
+        pass
+
+    def countLogsByFile(self, file):
+        filename = os.path.basename(file)
+        # print(filename)
+        self.__cursor.execute(f"SELECT COUNT(*) FROM conn_logs WHERE filename LIKE '{filename.split('.')[0]}'")
+        return self.__cursor.fetchone()[0]
         pass
 
     @DeprecationWarning
