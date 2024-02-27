@@ -86,7 +86,7 @@ try:
             else:
                 # with open('./index.log', 'a') as log_index:    
                 #     log_index.write(f'{prefix}-1\n')
-                logger.info(f'Skipping existing file {prefix}-1')
+                logger.info(f'\t\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Skipping existing file {prefix}-1')
 
 except KeyboardInterrupt:
     logger.info('Exiting...')
