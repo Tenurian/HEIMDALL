@@ -60,12 +60,12 @@ logger = logging.getLogger('sandbox')
 
 with open('index.log', 'r') as log_index: archive = [line.rstrip() for line in log_index.readlines()]
 
-print(f'archive: {archive}')
+# print(f'archive: {archive}')
 
 try:
-    val = input('Type \'e\' to exit... \n')
-    if val == 'e':
-        exit()
+    # val = input('Type \'e\' to exit... \n')
+    # if val == 'e':
+    #     exit()
 
     logger.info(f'Continuing with database population...')
     logger.info(f'Current Database Size: {db.size()}')
