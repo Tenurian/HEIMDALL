@@ -283,25 +283,20 @@ class Heimdall:
         print(f'Accuracy: {accuracy}')
 
         self.__LOGGER.info('\t\tTesting against Known Values')
-        for i in range(3):
-            # Known Malicious
-            malicious_sample = self.get_log_by_label('Malicious')
-            mal_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
-            mal_prob = self.__model.predict(mal_dict)[0][0]
-            print(
-                f"The malicious sample was labeled as {'benign' if mal_prob < 0.5 else 'malicious'}"
-                " with %.1f percent certainty" % (100 * mal_prob)
-            )
 
-            # Known Benign
-            benign_sample = self.get_log_by_label('Benign')
-            ben_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
-            ben_prob = self.__model.predict(ben_dict)[0][0]
-            
-            print(f"The benign sample was labeled as {'benign' if ben_prob < 0.5 else 'malicious'}"
-                " with %.1f percent certainty" % (100 * (1-ben_prob)))
+        # Known Malicious
+        malicious_sample = self.get_log_by_label('Malicious')
+        mal_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
+        mal_prob = self.__model(mal_dict)[0][0]
+        mal_prob *= 100
+        print(f"The malicious sample was labeled as {'benign' if mal_prob < 50 else 'malicious'} with {mal_prob:.1f} percent certainty")
 
-        # input('...')
+        # Known Benign
+        benign_sample = self.get_log_by_label('Benign')
+        ben_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
+        ben_prob = 1-self.__model(ben_dict)[0][0]
+        ben_prob *= 100
+        print(f"The benign sample was labeled as {'benign' if ben_prob < 50 else 'malicious'} with {ben_prob:.1f} percent certainty")
 
     def closeDatabase(self):
         self.__DATABASE.close()
