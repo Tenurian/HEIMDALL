@@ -18,8 +18,10 @@ import tensorflow_decision_forests as tfdf
 from LabeledLogDB import LabeledLogDB
 
 from tqdm import tqdm
+from enum import Enum
 
 class Heimdall:
+    Modes = Enum('Modes', ['RF', 'LR', 'GBT'])
     """
     The HEIMDALL model class.
     @params:
@@ -134,7 +136,8 @@ class Heimdall:
     
     def __init__(
         self,
-        NUM_TREES = 250,
+        MODE = None,
+        NUM_TREES = 4096,
         # Maximum number of decision trees. The effective number of trained trees can be smaller if early stopping is enabled.
 
         MIN_EXAMPLES = 6,
@@ -152,7 +155,7 @@ class Heimdall:
         VALIDATION_RATIO = 0.1,
         # Ratio of the training dataset used to monitor the training. Require to be >0 if early stopping is enabled.
 
-        DATABASE = LabeledLogDB()
+        DATABASE = LabeledLogDB(),
         # The labeled Log Database that will be used for training, testing, and validation.
     ):
         self.__NUM_TREES            = NUM_TREES
@@ -161,6 +164,7 @@ class Heimdall:
         self.__SUBSAMPLE            = SUBSAMPLE
         self.__SAMPLING_METHOD      = SAMPLING_METHOD
         self.__VALIDATION_RATIO     = VALIDATION_RATIO
+        self.__MODE                 = MODE if MODE else Heimdall.Modes.RF
         self.__DATABASE             = DATABASE
         self.__LOGGER = logging.getLogger('HEIMDALL')
         self.__LOGGER.info('Class loaded with provided values or defaults.')
@@ -186,7 +190,7 @@ class Heimdall:
             self.__LOGGER.info('Done.')
 
             # remove the filename and detailed_label columns, fill null, and cast the data to appropriate types
-            df = self.__strip_labels_from_df(pd.concat([malicious, benign]))
+            df = self.__prune_df(pd.concat([malicious, benign]))
         else:
             self.__LOGGER.info('Reading all logs from database and transforming results into a pandas dataframe...')
             select_all  = f'SELECT * FROM conn_logs'
@@ -194,7 +198,7 @@ class Heimdall:
             all         = pd.read_sql_query(select_all, self.__DATABASE.getConn())
             self.__LOGGER.info('Done')
             self.__LOGGER.info('Transforming dataframe...')
-            df = self.__strip_labels_from_df(all)
+            df = self.__prune_df(all)
             self.__LOGGER.info('Done')
 
 
@@ -208,16 +212,21 @@ class Heimdall:
 
         return [train,val,test]
     
-    def __strip_labels_from_df(self,df):
-        return df.drop(columns=[
+    def __prune_df(self,df,removeLabel=False):
+        outval = df.drop(columns=[
                 'filename',
+                'ts',
+                'uid',
+                'src_ip',
+                'src_port',
+                'dst_ip',
                 'detailed_label'
             ]).fillna({
-                'ts'                : 0.0,
-                'uid'               : '-',
-                'src_ip'            : '-',
-                'src_port'          : 0,
-                'dst_ip'            : '-',
+                # 'ts'                : 0.0,
+                # 'uid'               : '-',
+                # 'src_ip'            : '-',
+                # 'src_port'          : 0,
+                # 'dst_ip'            : '-',
                 'dst_port'          : 0,
                 'proto'             : '-',
                 'service'           : '-',
@@ -235,11 +244,11 @@ class Heimdall:
                 'resp_ip_bytes'     : 0,
                 'tunnel_parents'    : '-'
             }).astype({
-                'ts'                : 'f', 
-                'uid'               : 'U',
-                'src_ip'            : 'U',
-                'src_port'          : 'i',
-                'dst_ip'            : 'U',
+                # 'ts'                : 'f', 
+                # 'uid'               : 'U',
+                # 'src_ip'            : 'U',
+                # 'src_port'          : 'i',
+                # 'dst_ip'            : 'U',
                 'dst_port'          : 'i',
                 'proto'             : 'U',
                 'service'           : 'U',
@@ -257,19 +266,32 @@ class Heimdall:
                 'resp_ip_bytes'     : 'i',
                 'tunnel_parents'    : 'U'
             })
+        
+        if removeLabel:
+            outval.drop(columns=['label'])
+        return outval
+    
+    def get_log_by_label(self,label):
+        sql = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="{label}" ORDER BY RANDOM() LIMIT 1)'
+        self.__LOGGER.info(f'Getting {label} log...')
+        df = self.__prune_df(pd.read_sql_query(sql,    self.__DATABASE.getConn()), removeLabel=True)
+        print(df)
+        return df.iloc[0]
 
+    @DeprecationWarning
     def get_benign_log(self):
         select_benign =     'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT 1)'
         self.__LOGGER.info('Getting benign log...')
-        benign      = self.__strip_labels_from_df(pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) )
-        benign      = benign.drop(columns=['label'])
+        benign      = self.__prune_df(pd.read_sql_query(select_benign,      self.__DATABASE.getConn()), removeLabel=True)
+        print(benign)
         return benign.iloc[0]
 
+    @DeprecationWarning
     def get_malicious_log(self):
         select_malicious =  'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT 1)'
         self.__LOGGER.info('Getting malicious log...')
-        malicious   = self.__strip_labels_from_df(pd.read_sql_query(select_malicious,   self.__DATABASE.getConn()))
-        malicious   = malicious.drop(columns=['label'])
+        malicious   = self.__prune_df(pd.read_sql_query(select_malicious,   self.__DATABASE.getConn()), removeLabel=True)
+        print(malicious)
         return malicious.iloc[0]
 
     def testing_code(self,train,val,test):
@@ -277,87 +299,42 @@ class Heimdall:
         val_ds =    tfdf.keras.pd_dataframe_to_tf_dataset(val,      label='label')
         test_ds =   tfdf.keras.pd_dataframe_to_tf_dataset(test,     label='label')
 
-        if not self.__model:
-            self.__model = tfdf.keras.RandomForestModel(
-                verbose=2
-            )
         self.__model.compile(metrics=["accuracy"])
-
         self.__model.fit(train_ds)
         loss, accuracy = self.__model.evaluate(test_ds)
         print(f'Accuracy: {accuracy}')
 
         # Known Malicious
-        # 1547065514.872602       CgFbih6Hfauh83DUh       192.168.1.194   59106   82.76.255.62    6667    tcp     irc     9.079338        337     2462    RSTR    -       -       0       ShwAadDfr       14      917     13      2986    -   Malicious   C&C
-        # malicious_sample = {
-        #     'ts': 1547065514.872602,
-        #     'uid': 'CgFbih6Hfauh83DUh',
-        #     'src_ip': '192.168.1.194',
-        #     'src_port': 59106,
-        #     'dst_ip': '82.76.255.62',
-        #     'dst_port': 6667,
-        #     'proto': 'tcp',
-        #     'service': 'irc',
-        #     'duration': 9.079338,
-        #     'orig_bytes': 337,
-        #     'resp_bytes': 2462,
-        #     'conn_state': 'RSTR',
-        #     'local_orig': '-',
-        #     'local_resp': '-',
-        #     'missed_bytes': 0,
-        #     'history': 'ShwAadDfr',
-        #     'orig_pkts': 14,
-        #     'orig_ip_bytes': 917,
-        #     'resp_pkts': 13,
-        #     'resp_ip_bytes': 2986,
-        #     'tunnel_parents': '-'
-        # }
-        malicious_sample = self.get_malicious_log()
+        malicious_sample = self.get_log_by_label('Malicious')
+        print(malicious_sample)
+        print(type(malicious_sample))
 
-        # Known Benign
-        # 1547065514.852869       Cfv55W26MMly0nePie      192.168.1.194   42940   192.168.1.1     53      udp     dns     0.018234        92      171     SF      -       -       0       Dd      2       148     2       227     -   Benign   -
-        # benign_sample = {
-        #     'ts': 1547065514.852869,
-        #     'uid': 'Cfv55W26MMly0nePie',
-        #     'src_ip': '192.168.1.194',
-        #     'src_port': 42940,
-        #     'dst_ip': '192.168.1.1',
-        #     'dst_port': 53,
-        #     'proto': 'udp',
-        #     'service': 'dns',
-        #     'duration': 0.018234,
-        #     'orig_bytes': 92,
-        #     'resp_bytes': 171,
-        #     'conn_state': 'SF',
-        #     'local_orig': '-',
-        #     'local_resp': '-',
-        #     'missed_bytes': 0,
-        #     'history': 'Dd',
-        #     'orig_pkts': 2,
-        #     'orig_ip_bytes': 148,
-        #     'resp_pkts': 2,
-        #     'resp_ip_bytes': 227,
-        #     'tunnel_parents': '-'
-        # }
-        benign_sample = self.get_benign_log()
-
-
-
-        input_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
-        predictions = self.__model.predict(input_dict)
-        prob = tf.nn.sigmoid(predictions[0])
+        mal_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
+        mal_predictions = self.__model.predict(mal_dict)
+        print(mal_predictions)
+        print(self.__model(mal_dict))
+        mal_prob = tf.nn.sigmoid(mal_predictions[0])
         print(
             "The malicious sample had a %.1f percent probability "
-            "of being malicious." % (100 * prob)
+            "of being malicious." % (100 * mal_prob)
         )
 
-        input_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
-        predictions = self.__model.predict(input_dict)
-        prob = tf.nn.sigmoid(predictions[0])
+        # Known Benign
+        benign_sample = self.get_log_by_label('Benign')
+        print(benign_sample)
+        print(type(benign_sample))
+
+        ben_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
+        ben_predictions = self.__model.predict(ben_dict)
+        print(ben_predictions)
+        print(self.__model(ben_dict))
+        ben_prob = tf.nn.sigmoid(ben_predictions[0])
         print(
             "The benign sample had a %.1f percent probability "
-            "of being malicious." % (100 * prob)
+            "of being malicious." % (100 * ben_prob)
         )
+
+        input('...')
 
     def closeDatabase(self):
         self.__DATABASE.close()
@@ -373,6 +350,26 @@ class Heimdall:
             self.__LOGGER.info('Model successfully loaded from disk.')
         except:
             self.__LOGGER.error('Could not load model from disk.')
+            if self.__MODE == Heimdall.Modes.RF:
+                self.__model = tfdf.keras.RandomForestModel(
+                    verbose=2,
+                    hyperparameter_template="benchmark_rank1"
+                    # num_trees=self.__NUM_TREES,
+                    # min_examples=self.__MIN_EXAMPLES,
+                    # max_depth=self.__MAX_DEPTH,
+                    # categorical_algorithm="ONE_HOT"
+                )
+            elif self.__MODE == Heimdall.Modes.GBT:
+                self.__model = tfdf.keras.GradientBoostedTreesModel(
+                    verbose=2,
+                    num_trees=self.__NUM_TREES,
+                    min_examples=self.__MIN_EXAMPLES,
+                    max_depth=self.__MAX_DEPTH,
+                    categorical_algorithm="ONE_HOT"
+                )
+            else:
+                self.__LOGGER.warn('Selected mode is not supported. Exiting...')
+                exit(1)
         pass
 
     def saveModel(self):
@@ -386,23 +383,20 @@ class Heimdall:
 
 if __name__ == "__main__":
     logging.basicConfig(level="INFO")
-    h = Heimdall()
+    h = Heimdall(MODE=Heimdall.Modes.RF)
     try:
-        h.loadModel()
         for i in tqdm(range(5), desc="Batches", unit="batch"):
+            h.loadModel()
             print()
             for i in tqdm(range(20), desc="Iterations"):
                 print()
                 train,val,test = h.setup_dataframes(LIMIT=50000)
                 h.testing_code(train,val,test)
-                sleep(2)
+                # sleep(2)
                 print()
             h.saveModel()
-            sleep(5)
+            # sleep(5)
             print()
-        # train,val,test = h.setup_dataframes()
-        # h.testing_code(train,val,test)
-        # h.saveModel()
     except KeyboardInterrupt:
         print('exiting')
     finally:
