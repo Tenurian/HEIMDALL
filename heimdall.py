@@ -204,12 +204,6 @@ class Heimdall:
 
         train, val, test = np.split(df.sample(frac=1), [int(0.8*len(df)), int(0.9*len(df))])
 
-        # enc = OneHotEncoder()
-        # # for cat in self.__CATEGORICAL_FEATURE_NAMES:
-        # #     train[cat] = enc.fit_transform(train[cat])
-        # #     val[cat]   = enc.fit_transform(  val[cat])
-        # #     test[cat]  = enc.fit_transform( test[cat])
-
         return [train,val,test]
     
     def __prune_df(self,df,removeLabel=False):
@@ -277,22 +271,6 @@ class Heimdall:
         df = self.__prune_df(pd.read_sql_query(sql,    self.__DATABASE.getConn()), removeLabel=True)
         print(df)
         return df.iloc[0]
-
-    @DeprecationWarning
-    def get_benign_log(self):
-        select_benign =     'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT 1)'
-        self.__LOGGER.info('Getting benign log...')
-        benign      = self.__prune_df(pd.read_sql_query(select_benign,      self.__DATABASE.getConn()), removeLabel=True)
-        print(benign)
-        return benign.iloc[0]
-
-    @DeprecationWarning
-    def get_malicious_log(self):
-        select_malicious =  'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT 1)'
-        self.__LOGGER.info('Getting malicious log...')
-        malicious   = self.__prune_df(pd.read_sql_query(select_malicious,   self.__DATABASE.getConn()), removeLabel=True)
-        print(malicious)
-        return malicious.iloc[0]
 
     def testing_code(self,train,val,test):
         train_ds =  tfdf.keras.pd_dataframe_to_tf_dataset(train,    label='label')
