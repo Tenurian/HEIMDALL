@@ -5,8 +5,8 @@ import math
 from time import sleep
 
 import keras
-from keras import layers
-from keras.layers import StringLookup
+# from keras import layers
+# from keras.layers import StringLookup
 
 import tensorflow as tf
 from tensorflow import data as tf_data
@@ -262,14 +262,14 @@ class Heimdall:
             })
         
         if removeLabel:
-            outval.drop(columns=['label'])
+            outval = outval.drop(columns=['label'])
         return outval
     
     def get_log_by_label(self,label):
         sql = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="{label}" ORDER BY RANDOM() LIMIT 1)'
         self.__LOGGER.info(f'Getting {label} log...')
         df = self.__prune_df(pd.read_sql_query(sql,    self.__DATABASE.getConn()), removeLabel=True)
-        print(df)
+        # print(df)
         return df.iloc[0]
 
     def testing_code(self,train,val,test):
@@ -282,37 +282,26 @@ class Heimdall:
         loss, accuracy = self.__model.evaluate(test_ds)
         print(f'Accuracy: {accuracy}')
 
-        # Known Malicious
-        malicious_sample = self.get_log_by_label('Malicious')
-        print(malicious_sample)
-        print(type(malicious_sample))
+        self.__LOGGER.info('\t\tTesting against Known Values')
+        for i in range(3):
+            # Known Malicious
+            malicious_sample = self.get_log_by_label('Malicious')
+            mal_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
+            mal_prob = self.__model.predict(mal_dict)[0][0]
+            print(
+                f"The malicious sample was labeled as {'benign' if mal_prob < 0.5 else 'malicious'}"
+                " with %.1f percent certainty" % (100 * mal_prob)
+            )
 
-        mal_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
-        mal_predictions = self.__model.predict(mal_dict)
-        print(mal_predictions)
-        print(self.__model(mal_dict))
-        mal_prob = tf.nn.sigmoid(mal_predictions[0])
-        print(
-            "The malicious sample had a %.1f percent probability "
-            "of being malicious." % (100 * mal_prob)
-        )
+            # Known Benign
+            benign_sample = self.get_log_by_label('Benign')
+            ben_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
+            ben_prob = self.__model.predict(ben_dict)[0][0]
+            
+            print(f"The benign sample was labeled as {'benign' if ben_prob < 0.5 else 'malicious'}"
+                " with %.1f percent certainty" % (100 * (1-ben_prob)))
 
-        # Known Benign
-        benign_sample = self.get_log_by_label('Benign')
-        print(benign_sample)
-        print(type(benign_sample))
-
-        ben_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
-        ben_predictions = self.__model.predict(ben_dict)
-        print(ben_predictions)
-        print(self.__model(ben_dict))
-        ben_prob = tf.nn.sigmoid(ben_predictions[0])
-        print(
-            "The benign sample had a %.1f percent probability "
-            "of being malicious." % (100 * ben_prob)
-        )
-
-        input('...')
+        # input('...')
 
     def closeDatabase(self):
         self.__DATABASE.close()
@@ -330,7 +319,7 @@ class Heimdall:
             self.__LOGGER.error('Could not load model from disk.')
             if self.__MODE == Heimdall.Modes.RF:
                 self.__model = tfdf.keras.RandomForestModel(
-                    verbose=2,
+                    # verbose=2,
                     hyperparameter_template="benchmark_rank1"
                     # num_trees=self.__NUM_TREES,
                     # min_examples=self.__MIN_EXAMPLES,
@@ -339,7 +328,7 @@ class Heimdall:
                 )
             elif self.__MODE == Heimdall.Modes.GBT:
                 self.__model = tfdf.keras.GradientBoostedTreesModel(
-                    verbose=2,
+                    # verbose=2,
                     num_trees=self.__NUM_TREES,
                     min_examples=self.__MIN_EXAMPLES,
                     max_depth=self.__MAX_DEPTH,
