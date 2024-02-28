@@ -1,16 +1,4 @@
 import logging
-
-# import json
-
-# a = ["ts","uid","id.orig_h","id.orig_p","id.resp_h","id.resp_p","proto","service","duration","orig_bytes","resp_bytes","conn_state","local_orig","local_resp","missed_bytes","history","orig_pkts","orig_ip_bytes","resp_pkts","resp_ip_bytes","tunnel_parents","label","detailed-label"]
-# b = ["time","string","addr","port","addr","port","enum","string","interval","count","count","string","bool","bool","count","string","count","count","count","count","set[string]","string","string"]
-# c = {}
-
-# for i,v, in enumerate(a):
-#     c[v] = b[i]
-
-# print(json.dumps(c, indent=2))
-
 from LabeledLogDB import LabeledLogDB
 from datetime import datetime
 
@@ -35,16 +23,11 @@ massive_files = ['33','17','43','39']
 # import os
 from glob import glob
 
-# directory = r"C:\Users\thomas.feuerborn\Documents\IoT Labeled Zeek Logs"
-# directory = r"C:\Users\Spoon\Documents\IoT Labeled Zeek Logs"
 directory = r"../IoT Labeled Zeek Logs"
 
 logging.basicConfig(level='INFO')
 
-## largest -> smallest
-# for i,prefix in enumerate(size_order[::-1]):
 # smallest -> largest 
-
 order = ['small', 'medium', 'large', 'massive']
 
 d = {
@@ -56,17 +39,10 @@ d = {
 
 
 logger = logging.getLogger('sandbox')
-# logger.info('parsing small files')
 
 with open('index.log', 'r') as log_index: archive = [line.rstrip() for line in log_index.readlines()]
 
-# print(f'archive: {archive}')
-
 try:
-    # val = input('Type \'e\' to exit... \n')
-    # if val == 'e':
-    #     exit()
-
     logger.info(f'Continuing with database population...')
     logger.info(f'Current Database Size: {db.size()}')
     print()
@@ -84,8 +60,6 @@ try:
                         log_index.write(f'{prefix}-1\n')
                     print()
             else:
-                # with open('./index.log', 'a') as log_index:    
-                #     log_index.write(f'{prefix}-1\n')
                 logger.info(f'\t\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Skipping existing file {prefix}-1')
 
 except KeyboardInterrupt:

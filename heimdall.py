@@ -296,7 +296,7 @@ class Heimdall:
         ben_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
         ben_prob = 1-self.__model(ben_dict)[0][0]
         ben_prob *= 100
-        print(f"The benign sample was labeled as {'benign' if ben_prob < 50 else 'malicious'} with {ben_prob:.1f} percent certainty")
+        print(f"The benign sample was labeled as {'benign' if ben_prob > 50 else 'malicious'} with {ben_prob:.1f} percent certainty")
 
     def closeDatabase(self):
         self.__DATABASE.close()
