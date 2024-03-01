@@ -38,7 +38,7 @@ d = {
 }
 
 
-logger = logging.getLogger('sandbox')
+logger = logging.getLogger('populate-db')
 
 with open('index.log', 'r') as log_index: archive = [line.rstrip() for line in log_index.readlines()]
 
