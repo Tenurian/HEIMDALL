@@ -49,6 +49,7 @@ class Heimdall:
         ds = ds.batch(batch_size)
         return ds
     
+    '''
     @staticmethod
     def getNormalizationLayer(name, dataset):
         # Create a Normalization layer for the feature.
@@ -61,7 +62,9 @@ class Heimdall:
         normalizer.adapt(feature_ds)
 
         return normalizer
+    '''
     
+    '''
     @staticmethod
     def getCategoryEncodingLayer(name, dataset, dtype, max_tokens=None):
         # Create a layer that turns strings into integer indices.
@@ -83,6 +86,7 @@ class Heimdall:
         # Apply multi-hot encoding to the indices. The lambda function captures the
         # layer, so you can use them, or include them in the Keras Functional model later.
         return lambda feature: encoder(index(feature))
+    '''
     
     ''' Columns  &  Their Datatypes
         filename        text    cat
