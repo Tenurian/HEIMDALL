@@ -50,7 +50,7 @@ try:
         size_order = d[size]['arr']
         logger.info(f'Reading the {size} ({d[size]["desc"]}) files...')
         for i,prefix in enumerate(size_order):
-            logger.info(f'\t\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
+            logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) file {prefix}-1 ({i+1}/{len(size_order)})')
             if f'{prefix}-1' not in archive:
                 for file in glob(f'{directory}/*-{prefix}-1.conn.log.labeled'):
                     db.upsertLogfile(file)
@@ -60,7 +60,7 @@ try:
                         log_index.write(f'{prefix}-1\n')
                     print()
             else:
-                logger.info(f'\t\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Skipping existing file {prefix}-1')
+                logger.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Skipping existing file {prefix}-1')
 
 except KeyboardInterrupt:
     logger.info('Exiting...')

@@ -20,6 +20,10 @@ from LabeledLogDB import LabeledLogDB
 from tqdm import tqdm
 from enum import Enum
 
+from datetime import datetime
+
+from utils.Spinner import Spinner,Modes
+
 class Heimdall:
     Modes = Enum('Modes', ['RF', 'LR', 'GBT'])
     """
@@ -36,7 +40,7 @@ class Heimdall:
 
     # A utility method to create a tf.data dataset from a Pandas Dataframe
     @staticmethod
-    def df_to_dataset(dataframe, shuffle=True, batch_size=32):
+    def dfToDataset(dataframe, shuffle=True, batch_size=32):
         dataframe = dataframe.copy()
         labels = dataframe.pop('label')
         ds = tf_data.Dataset.from_tensor_slices((dict(dataframe), labels))
@@ -46,7 +50,7 @@ class Heimdall:
         return ds
     
     @staticmethod
-    def get_normalization_layer(name, dataset):
+    def getNormalizationLayer(name, dataset):
         # Create a Normalization layer for the feature.
         normalizer = layers.Normalization(axis=None)
 
@@ -59,7 +63,7 @@ class Heimdall:
         return normalizer
     
     @staticmethod
-    def get_category_encoding_layer(name, dataset, dtype, max_tokens=None):
+    def getCategoryEncodingLayer(name, dataset, dtype, max_tokens=None):
         # Create a layer that turns strings into integer indices.
         if dtype == 'string':
             index = layers.StringLookup(max_tokens=max_tokens)
@@ -167,46 +171,117 @@ class Heimdall:
         self.__MODE                 = MODE if MODE else Heimdall.Modes.RF
         self.__DATABASE             = DATABASE
         self.__LOGGER = logging.getLogger('HEIMDALL')
-        self.__LOGGER.info('Class loaded with provided values or defaults.')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Class loaded with provided values or defaults.\n')
 
-    def setup_dataframes(self, LIMIT=10000000):
+    def setupDataframeByFile(self, filename, limit = 500000, page = 0):
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Querying database and setting up Dataframe\n')
+        with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
+            query = f'SELECT * FROM conn_logs WHERE filename="{filename}" LIMIT {limit} OFFSET {page*limit}'
+            return self.__pruneDf(pd.read_sql_query(query, self.__DATABASE.getConn()))
+        # pass
+    
+    def core(self, df):
+        print('\n')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Running HEIMDALL.core\n')
+        #ds = tfdf.keras.pd_dataframe_to_tf_dataset(dataframe, label='label')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Splitting Dataframes.\n')
+        train, test, val = np.split(df.sample(frac=1), [int(0.8*len(df)), int(0.9*len(df))])
+        # _val = val.drop(columns=['label'])
+        # print(_val)
+        # print(type(_val))
+        # input('hold')
+        train_ds =  tfdf.keras.pd_dataframe_to_tf_dataset(train,    label='label')
+        test_ds =   tfdf.keras.pd_dataframe_to_tf_dataset(test,     label='label')
+        val_ds =    tfdf.keras.pd_dataframe_to_tf_dataset(val,      label='label')
+        # val_ds =    tfdf.keras.pd_dataframe_to_tf_dataset(_val)
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Fitting the model\n')
+        self.__model.fit(train_ds)
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Evaluating...\n')
+        loss,accuracy = self.__model.evaluate(test_ds)
+        print(f'Accuracy: {accuracy}')
+        
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Validation:\n')
+        # val_res = self.__model(val_ds)
+        val_res = self.__model.predict(
+            val_ds,
+            batch_size=None,
+            verbose='auto',
+            steps=None,
+            callbacks=None,
+            max_queue_size=10,
+            workers=1,
+            use_multiprocessing=False
+        )
 
+        print(val_res[-10::])
+        # print(val_res[:10:])
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Saving model\n')
+        self.saveModel(version="_Full")
+        pass
+
+    def trainOnFullDatabase(self):
+        self.loadModel(version="_Full")
+        self.__model.compile(metrics=["accuracy"])
+        LIMIT = 500000
+        filelisting = self.__DATABASE.getDatabaseFileListing()
+        for filename in tqdm(filelisting, unit="File", desc="Files from Database"):
+            print('\n')
+            file_log_count = self.__DATABASE.getLogCountByFile(filename)
+            if file_log_count > LIMIT:
+                for page in tqdm(range((file_log_count//LIMIT)+1), unit="Page", desc=f"Pages in File {filename}"):
+                    print('\n')
+                    self.core(self.setupDataframeByFile(filename=filename, limit=LIMIT, page=page))
+                    print('\n')
+                    pass
+            else:
+                self.core(self.setupDataframeByFile(filename))
+            print('\n')
+        pass
+
+    '''
+    def setupRandomDataframes(self, LIMIT=10000000):
         # select_benign       = None
         # select_malicious    = None
-
         df = None
-
         print()
-
         if LIMIT:
-            self.__LOGGER.info(f'Reading {LIMIT} lines from database and transforming results into a pandas dataframe...')
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Reading {LIMIT} lines from database and transforming results into a pandas dataframe...\n')
             select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT {LIMIT//2})'
             select_benign       = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT {LIMIT//2})'
-            self.__LOGGER.info('Getting malicious logs...')
-            malicious   = pd.read_sql_query(select_malicious,   self.__DATABASE.getConn())
-            self.__LOGGER.info('Done.')
-            self.__LOGGER.info('Getting benign logs...')
-            benign      = pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) 
-            self.__LOGGER.info('Done.')
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Getting malicious logs...\n')
+            with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
+                malicious   = pd.read_sql_query(select_malicious,   self.__DATABASE.getConn())
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Done.\n')
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Getting benign logs...\n')
+            with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
+                benign      = pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) 
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Done.\n')
 
             # remove the filename and detailed_label columns, fill null, and cast the data to appropriate types
-            df = self.__prune_df(pd.concat([malicious, benign]))
+            df = self.__pruneDf(pd.concat([malicious, benign]))
         else:
-            self.__LOGGER.info('Reading all logs from database and transforming results into a pandas dataframe...')
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Reading all logs from database and transforming results into a pandas dataframe...\n')
             select_all  = f'SELECT * FROM conn_logs'
-            self.__LOGGER.info('querying database...')
-            all         = pd.read_sql_query(select_all, self.__DATABASE.getConn())
-            self.__LOGGER.info('Done')
-            self.__LOGGER.info('Transforming dataframe...')
-            df = self.__prune_df(all)
-            self.__LOGGER.info('Done')
-
-
+            with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
+                all         = pd.read_sql_query(select_all, self.__DATABASE.getConn())
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Done\n')
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Transforming dataframe...\n')
+            df = self.__pruneDf(all)
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Done\n')
         train, val, test = np.split(df.sample(frac=1), [int(0.8*len(df)), int(0.9*len(df))])
-
         return [train,val,test]
+    '''
     
-    def __prune_df(self,df,removeLabel=False):
+    def __pruneDf(self,df,removeLabel=False):
+        '''
+/home/spoon/HEIMDALL/heimdall.py:279: 
+    FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. 
+    Call result.infer_objects(copy=False) instead. 
+    To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+    ]).fillna({
+    ...
+        '''
+        
         outval = df.drop(columns=[
                 'filename',
                 'ts',
@@ -216,11 +291,6 @@ class Heimdall:
                 'dst_ip',
                 'detailed_label'
             ]).fillna({
-                # 'ts'                : 0.0,
-                # 'uid'               : '-',
-                # 'src_ip'            : '-',
-                # 'src_port'          : 0,
-                # 'dst_ip'            : '-',
                 'dst_port'          : 0,
                 'proto'             : '-',
                 'service'           : '-',
@@ -238,11 +308,6 @@ class Heimdall:
                 'resp_ip_bytes'     : 0,
                 'tunnel_parents'    : '-'
             }).astype({
-                # 'ts'                : 'f', 
-                # 'uid'               : 'U',
-                # 'src_ip'            : 'U',
-                # 'src_port'          : 'i',
-                # 'dst_ip'            : 'U',
                 'dst_port'          : 'i',
                 'proto'             : 'U',
                 'service'           : 'U',
@@ -265,14 +330,18 @@ class Heimdall:
             outval = outval.drop(columns=['label'])
         return outval
     
-    def get_log_by_label(self,label):
+    '''
+    def getLogByLabel(self,label):
         sql = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="{label}" ORDER BY RANDOM() LIMIT 1)'
-        self.__LOGGER.info(f'Getting {label} log...')
-        df = self.__prune_df(pd.read_sql_query(sql,    self.__DATABASE.getConn()), removeLabel=True)
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Getting {label} log...\n')
+        with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
+            df = self.__pruneDf(pd.read_sql_query(sql,    self.__DATABASE.getConn()), removeLabel=True)
         # print(df)
         return df.iloc[0]
+    '''
 
-    def testing_code(self,train,val,test):
+    '''
+    def testingCode(self,train,val,test):
         train_ds =  tfdf.keras.pd_dataframe_to_tf_dataset(train,    label='label')
         val_ds =    tfdf.keras.pd_dataframe_to_tf_dataset(val,      label='label')
         test_ds =   tfdf.keras.pd_dataframe_to_tf_dataset(test,     label='label')
@@ -282,34 +351,35 @@ class Heimdall:
         loss, accuracy = self.__model.evaluate(test_ds)
         print(f'Accuracy: {accuracy}')
 
-        self.__LOGGER.info('\t\tTesting against Known Values')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Testing against Known Values\n')
 
         # Known Malicious
-        malicious_sample = self.get_log_by_label('Malicious')
+        malicious_sample = self.getLogByLabel('Malicious')
+        benign_sample = self.getLogByLabel('Benign')
+        
+        
         mal_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
         mal_prob = self.__model(mal_dict)[0][0]
         mal_prob *= 100
         print(f"The malicious sample was labeled as {'benign' if mal_prob < 50 else 'malicious'} with {mal_prob:.1f} percent certainty")
 
         # Known Benign
-        benign_sample = self.get_log_by_label('Benign')
         ben_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
         ben_prob = 1-self.__model(ben_dict)[0][0]
         ben_prob *= 100
         print(f"The benign sample was labeled as {'benign' if ben_prob > 50 else 'malicious'} with {ben_prob:.1f} percent certainty")
+    '''
 
     def closeDatabase(self):
         self.__DATABASE.close()
 
-    def run(self):
-        pass
-
-    def loadModel(self):
-        self.__LOGGER.info('Attempting to load model from disk.')
+    def loadModel(self, version="_Basic"):
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Attempting to load Heimdall{version}.keras model from disk.\n')
         try:
-            self.__model = tf.keras.models.load_model('Heimdall_Basic.keras')
+            # self.__model = tf.keras.models.load_model('Heimdall_Basic.keras')
+            self.__model = tf.keras.models.load_model(f'Heimdall{version}.keras')
             self.__model.compile(metrics=["accuracy"])
-            self.__LOGGER.info('Model successfully loaded from disk.')
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Model successfully loaded from disk.\n')
         except:
             self.__LOGGER.error('Could not load model from disk.')
             if self.__MODE == Heimdall.Modes.RF:
@@ -317,7 +387,7 @@ class Heimdall:
                     # verbose=2,
                     hyperparameter_template="benchmark_rank1"
                     # num_trees=self.__NUM_TREES,
-                    # min_examples=self.__MIN_EXAMPLES,
+                    # min_examples=3,
                     # max_depth=self.__MAX_DEPTH,
                     # categorical_algorithm="ONE_HOT"
                 )
@@ -330,36 +400,47 @@ class Heimdall:
                     categorical_algorithm="ONE_HOT"
                 )
             else:
-                self.__LOGGER.warn('Selected mode is not supported. Exiting...')
+                self.__LOGGER.warn(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Selected mode is not supported. Exiting...\n')
                 exit(1)
         pass
 
-    def saveModel(self):
-        self.__LOGGER.info('Attempting to save model to disk.')
+    def saveModel(self, version=""):
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Attempting to save model to disk.\n')
         try:
-            self.__model.save('Heimdall_Basic.keras')
-            self.__LOGGER.info('Model successfully saveed to disk.')
+            filename = f'Heimdall{version}.keras'
+            self.__model.save(filename)
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Model {filename} successfully saved to disk.\n')
         except:
-            self.__LOGGER.error('Could not save model to disk.')
+            self.__LOGGER.error(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Could not save model to disk.\n')
         pass
 
 if __name__ == "__main__":
-    logging.basicConfig(level="INFO")
-    h = Heimdall(MODE=Heimdall.Modes.RF)
     try:
+        # print()
+        # print(tfdf.keras.RandomForestModel.predefined_hyperparameters())
+        # print()
+        # input('Press ENTER to continue.')
+        logging.basicConfig(level="INFO")
+        h = Heimdall(MODE=Heimdall.Modes.RF)
+        h.trainOnFullDatabase()
+        '''
         for i in tqdm(range(5), desc="Batches", unit="batch"):
             h.loadModel()
             print()
             for i in tqdm(range(20), desc="Iterations"):
                 print()
-                train,val,test = h.setup_dataframes(LIMIT=50000)
-                h.testing_code(train,val,test)
+                train,val,test = h.setupRandomDataframes(LIMIT=50000)
+                h.testingCode(train,val,test)
                 # sleep(2)
                 print()
-            h.saveModel()
+            h.saveModel(version="_Basic")
             # sleep(5)
             print()
+        '''
     except KeyboardInterrupt:
-        print('exiting')
+        print('Exiting...')
     finally:
-        h.closeDatabase()
+        try:
+            h.closeDatabase()
+        except Exception:
+            pass
