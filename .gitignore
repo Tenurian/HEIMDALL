@@ -5,3 +5,4 @@
 .connlog.db*
 __pycache__
 .vscode
+database_config.json

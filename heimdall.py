@@ -175,37 +175,30 @@ class Heimdall:
         self.__MODE                 = MODE if MODE else Heimdall.Modes.RF
         self.__DATABASE             = DATABASE
         self.__LOGGER = logging.getLogger('HEIMDALL')
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Class loaded with provided values or defaults.\n')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Class loaded with provided values or defaults.')
 
     def setupDataframeByFile(self, filename, limit = 500000, page = 0):
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Querying database and setting up Dataframe\n')
-        with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Querying database and setting up Dataframe')
+        with Spinner(mode=Modes.Pong, suffix=f" Querying Database for up to 500,000 logs from {filename}..."):
             query = f'SELECT * FROM conn_logs WHERE filename="{filename}" LIMIT {limit} OFFSET {page*limit}'
             return self.__pruneDf(pd.read_sql_query(query, self.__DATABASE.getConn()))
         # pass
     
-    def core(self, df):
+    def trainingCore(self, df):
         print('\n')
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Running HEIMDALL.core\n')
-        #ds = tfdf.keras.pd_dataframe_to_tf_dataset(dataframe, label='label')
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Splitting Dataframes.\n')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Running HEIMDALL.trainingCore')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Splitting Dataframes.')
         train, test, val = np.split(df.sample(frac=1), [int(0.8*len(df)), int(0.9*len(df))])
-        # _val = val.drop(columns=['label'])
-        # print(_val)
-        # print(type(_val))
-        # input('hold')
         train_ds =  tfdf.keras.pd_dataframe_to_tf_dataset(train,    label='label')
         test_ds =   tfdf.keras.pd_dataframe_to_tf_dataset(test,     label='label')
         val_ds =    tfdf.keras.pd_dataframe_to_tf_dataset(val,      label='label')
-        # val_ds =    tfdf.keras.pd_dataframe_to_tf_dataset(_val)
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Fitting the model\n')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Fitting the model')
         self.__model.fit(train_ds)
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Evaluating...\n')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Evaluating...')
         loss,accuracy = self.__model.evaluate(test_ds)
         print(f'Accuracy: {accuracy}')
         
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Validation:\n')
-        # val_res = self.__model(val_ds)
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Validation:')
         val_res = self.__model.predict(
             val_ds,
             batch_size=None,
@@ -218,14 +211,11 @@ class Heimdall:
         )
 
         print(val_res[-10::])
-        # print(val_res[:10:])
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Saving model\n')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Saving model')
         self.saveModel(version="_Full")
         pass
 
     def trainOnFullDatabase(self):
-        self.loadModel(version="_Full")
-        self.__model.compile(metrics=["accuracy"])
         LIMIT = 500000
         filelisting = self.__DATABASE.getDatabaseFileListing()
         for filename in tqdm(filelisting, unit="File", desc="Files from Database"):
@@ -234,47 +224,39 @@ class Heimdall:
             if file_log_count > LIMIT:
                 for page in tqdm(range((file_log_count//LIMIT)+1), unit="Page", desc=f"Pages in File {filename}"):
                     print('\n')
-                    self.core(self.setupDataframeByFile(filename=filename, limit=LIMIT, page=page))
+                    self.trainingCore(self.setupDataframeByFile(filename=filename, limit=LIMIT, page=page))
                     print('\n')
                     pass
             else:
-                self.core(self.setupDataframeByFile(filename))
+                self.trainingCore(self.setupDataframeByFile(filename))
             print('\n')
+        pass    
+
+    def testingCore(self,df):
+        print('\n')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Running HEIMDALL.testingCore')
+        ds = tfdf.keras.pd_dataframe_to_tf_dataset(df, label='label')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Evaluating...')
+        loss,accuracy = self.__model.evaluate(ds)
+        print(f'Accuracy: {accuracy}')
         pass
 
-    '''
-    def setupRandomDataframes(self, LIMIT=10000000):
-        # select_benign       = None
-        # select_malicious    = None
-        df = None
-        print()
-        if LIMIT:
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Reading {LIMIT} lines from database and transforming results into a pandas dataframe...\n')
-            select_malicious    = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Malicious" ORDER BY RANDOM() LIMIT {LIMIT//2})'
-            select_benign       = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="Benign" ORDER BY RANDOM() LIMIT {LIMIT//2})'
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Getting malicious logs...\n')
-            with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
-                malicious   = pd.read_sql_query(select_malicious,   self.__DATABASE.getConn())
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Done.\n')
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Getting benign logs...\n')
-            with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
-                benign      = pd.read_sql_query(select_benign,      self.__DATABASE.getConn()) 
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Done.\n')
-
-            # remove the filename and detailed_label columns, fill null, and cast the data to appropriate types
-            df = self.__pruneDf(pd.concat([malicious, benign]))
-        else:
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Reading all logs from database and transforming results into a pandas dataframe...\n')
-            select_all  = f'SELECT * FROM conn_logs'
-            with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
-                all         = pd.read_sql_query(select_all, self.__DATABASE.getConn())
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Done\n')
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Transforming dataframe...\n')
-            df = self.__pruneDf(all)
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Done\n')
-        train, val, test = np.split(df.sample(frac=1), [int(0.8*len(df)), int(0.9*len(df))])
-        return [train,val,test]
-    '''
+    def testOnFullDatabase(self):
+        LIMIT = 500000
+        filelisting = self.__DATABASE.getDatabaseFileListing()
+        for filename in tqdm(filelisting, unit="File", desc="Files from Database"):
+            print('\n')
+            file_log_count = self.__DATABASE.getLogCountByFile(filename)
+            if file_log_count > LIMIT:
+                for page in tqdm(range((file_log_count//LIMIT)+1), unit="Page", desc=f"Pages in File {filename}"):
+                    print('\n')
+                    self.trainingCore(self.setupDataframeByFile(filename=filename, limit=LIMIT, page=page))
+                    print('\n')
+                    pass
+            else:
+                self.trainingCore(self.setupDataframeByFile(filename))
+            print('\n')
+        pass
     
     def __pruneDf(self,df,removeLabel=False):
         '''
@@ -333,57 +315,17 @@ class Heimdall:
         if removeLabel:
             outval = outval.drop(columns=['label'])
         return outval
-    
-    '''
-    def getLogByLabel(self,label):
-        sql = f'SELECT * FROM conn_logs WHERE uid IN (SELECT uid FROM conn_logs WHERE label="{label}" ORDER BY RANDOM() LIMIT 1)'
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Getting {label} log...\n')
-        with Spinner(mode=Modes.RoundBounce5, suffix=' Working...'):
-            df = self.__pruneDf(pd.read_sql_query(sql,    self.__DATABASE.getConn()), removeLabel=True)
-        # print(df)
-        return df.iloc[0]
-    '''
-
-    '''
-    def testingCode(self,train,val,test):
-        train_ds =  tfdf.keras.pd_dataframe_to_tf_dataset(train,    label='label')
-        val_ds =    tfdf.keras.pd_dataframe_to_tf_dataset(val,      label='label')
-        test_ds =   tfdf.keras.pd_dataframe_to_tf_dataset(test,     label='label')
-
-        self.__model.compile(metrics=["accuracy"])
-        self.__model.fit(train_ds)
-        loss, accuracy = self.__model.evaluate(test_ds)
-        print(f'Accuracy: {accuracy}')
-
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Testing against Known Values\n')
-
-        # Known Malicious
-        malicious_sample = self.getLogByLabel('Malicious')
-        benign_sample = self.getLogByLabel('Benign')
-        
-        
-        mal_dict = {name: tf.convert_to_tensor([value]) for name, value in malicious_sample.items()}
-        mal_prob = self.__model(mal_dict)[0][0]
-        mal_prob *= 100
-        print(f"The malicious sample was labeled as {'benign' if mal_prob < 50 else 'malicious'} with {mal_prob:.1f} percent certainty")
-
-        # Known Benign
-        ben_dict = {name: tf.convert_to_tensor([value]) for name, value in benign_sample.items()}
-        ben_prob = 1-self.__model(ben_dict)[0][0]
-        ben_prob *= 100
-        print(f"The benign sample was labeled as {'benign' if ben_prob > 50 else 'malicious'} with {ben_prob:.1f} percent certainty")
-    '''
 
     def closeDatabase(self):
         self.__DATABASE.close()
 
     def loadModel(self, version="_Basic"):
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Attempting to load Heimdall{version}.keras model from disk.\n')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Attempting to load Heimdall{version}.keras model from disk.')
         try:
             # self.__model = tf.keras.models.load_model('Heimdall_Basic.keras')
             self.__model = tf.keras.models.load_model(f'Heimdall{version}.keras')
             self.__model.compile(metrics=["accuracy"])
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Model successfully loaded from disk.\n')
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Model successfully loaded from disk.')
         except:
             self.__LOGGER.error('Could not load model from disk.')
             if self.__MODE == Heimdall.Modes.RF:
@@ -409,11 +351,11 @@ class Heimdall:
         pass
 
     def saveModel(self, version=""):
-        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Attempting to save model to disk.\n')
+        self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Attempting to save model to disk.')
         try:
             filename = f'Heimdall{version}.keras'
             self.__model.save(filename)
-            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Model {filename} successfully saved to disk.\n')
+            self.__LOGGER.info(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Model {filename} successfully saved to disk.')
         except:
             self.__LOGGER.error(f'\t({datetime.now().strftime("%Y-%m-%d %H:%M:%S")}) Could not save model to disk.\n')
         pass
@@ -426,7 +368,9 @@ if __name__ == "__main__":
         # input('Press ENTER to continue.')
         logging.basicConfig(level="INFO")
         h = Heimdall(MODE=Heimdall.Modes.RF)
-        h.trainOnFullDatabase()
+        h.loadModel(version="_Full")
+        # h.trainOnFullDatabase()
+        h.testOnFullDatabase()
         '''
         for i in tqdm(range(5), desc="Batches", unit="batch"):
             h.loadModel()

@@ -19,4 +19,3 @@ for mode in modes:
     with Spinner(mode=mode, suffix=' Working...'):
         for i in range(5):
             sleep(1)
-    print()

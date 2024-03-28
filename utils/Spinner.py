@@ -164,6 +164,9 @@ class Spinner:
         time.sleep(self.delay)
         sys.stdout.write('\b' * (len(self.frames[0]) + len(self.suffix)))
         sys.stdout.flush()
-        print('\033[A') # place cursor at beginning of previous line
+        print(f'{" " * (len(self.frames[0])+ len(self.suffix))}\033[A') 
+        # print spaces where the spinner was, then place the cursor at 
+        # the beginning of previous line so next line of output will
+        # overwrite the spaces
         if exception is not None:
             return False
