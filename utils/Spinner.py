@@ -170,3 +170,4 @@ class Spinner:
         # overwrite the spaces
         if exception is not None:
             return False
+
